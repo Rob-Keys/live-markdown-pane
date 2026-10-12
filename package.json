@@ -107,38 +107,6 @@
         "title": "Live Markdown: Redo"
       }
     ],
-    "menus": {
-      "editor/title": [
-        {
-          "command": "liveMarkdown.toggleSource",
-          "group": "navigation@1"
-        },
-        {
-          "command": "liveMarkdown.chooseReadingPreset",
-          "group": "navigation@2"
-        },
-        {
-          "command": "liveMarkdown.openSettings",
-          "group": "navigation@3"
-        },
-        {
-          "command": "liveMarkdown.resetAppearance",
-          "group": "navigation@4"
-        },
-        {
-          "command": "liveMarkdown.openInTextEditor",
-          "group": "navigation@5"
-        },
-        {
-          "command": "liveMarkdown.undo",
-          "group": "navigation@6"
-        },
-        {
-          "command": "liveMarkdown.redo",
-          "group": "navigation@7"
-        }
-      ]
-    },
     "keybindings": [
       {
         "command": "liveMarkdown.bold",
