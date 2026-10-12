@@ -406,7 +406,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('default file opening and save immediately after a CodeMirror edit', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension, 'extension manifest should be discovered');
       await extension.activate();
       const file = path.join(tempDir, 'default.md');
@@ -434,7 +434,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('rendering and saving preserve exact Markdown bytes', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'byte-preservation.md');
@@ -515,7 +515,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('untitled Markdown routing', async () => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       await vscode.commands.executeCommand('liveMarkdown.newDocument');
@@ -526,7 +526,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('source-mode toggles leave the Markdown document unchanged', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'source-mode.md');
@@ -547,7 +547,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('same-document split views synchronize through the shared host document', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'split.md');
@@ -572,7 +572,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('Live Markdown undo and redo update the shared TextDocument', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'history.md');
@@ -767,7 +767,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('external document changes reconcile before rapid queued formatting edits', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'external.md');
@@ -791,7 +791,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('VS Code auto-save writes custom-editor transactions', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const config = vscode.workspace.getConfiguration('files');
@@ -812,7 +812,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('renamed custom editors continue committing to the renamed document', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'before-rename.md');
@@ -843,7 +843,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('a renamed split-view bridge stays alive while either view remains open', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const file = path.join(tempDir, 'split-before-rename.md');
@@ -877,7 +877,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('dirty custom editors discard local changes when reloaded from disk', async tempDir => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       const filesConfig = vscode.workspace.getConfiguration('files');
@@ -1101,7 +1101,7 @@ export async function run(): Promise<void> {
       const uri = vscode.Uri.file(file);
       const document = await vscode.workspace.openTextDocument(uri);
       assert.equal(await isDocumentReadonly(uri), true);
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.ok(extension);
       await extension.activate();
       await vscode.commands.executeCommand('vscode.open', uri);

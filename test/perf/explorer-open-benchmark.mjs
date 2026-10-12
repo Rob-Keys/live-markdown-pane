@@ -115,7 +115,7 @@ async function activeExplorerTab(name) {
     const activeAt = window.__liveMarkdownExplorerActivationAt;
     const frame = [...document.querySelectorAll('iframe.webview')].find(item => getComputedStyle(item).visibility === 'visible'
       && item.src.startsWith('vscode-webview://')
-      && new URL(item.src).searchParams.get('extensionId') === 'live-markdown.live-markdown');
+      && new URL(item.src).searchParams.get('extensionId') === 'RobKeys.live-markdown-pane');
     return activeName === ${JSON.stringify(name)} ? { activeAt: Number.isFinite(activeAt) ? activeAt : null,
       activeId: frame ? new URL(frame.src).searchParams.get('id') : null } : null;
   })()`);

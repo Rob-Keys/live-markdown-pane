@@ -46,7 +46,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.commands.registerCommand('liveMarkdown.openInTextEditor', () => provider.openInTextEditor()),
-    vscode.commands.registerCommand('liveMarkdown.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:live-markdown.live-markdown')),
+    vscode.commands.registerCommand('liveMarkdown.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', '@ext:RobKeys.live-markdown-pane')),
     vscode.commands.registerCommand('liveMarkdown.chooseReadingPreset', async () => {
       const selected = await vscode.window.showQuickPick([
         { label: 'Default', value: 'default', description: '16 px · 1.6 · 80 ch' },

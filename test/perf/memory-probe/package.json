@@ -8,7 +8,7 @@
   },
   "main": "./extension.js",
   "extensionDependencies": [
-    "live-markdown.live-markdown"
+    "RobKeys.live-markdown-pane"
   ],
   "activationEvents": [
     "onCommand:liveMarkdownMemoryProbe.openFixtures"

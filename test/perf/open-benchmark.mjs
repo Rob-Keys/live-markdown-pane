@@ -41,7 +41,7 @@ async function activeEditorReady(expectedBasename) {
         const frame = [...document.querySelectorAll('iframe.webview')].find(item =>
           getComputedStyle(item).visibility === 'visible'
           && item.src.startsWith('vscode-webview://')
-          && new URL(item.src).searchParams.get('extensionId') === 'live-markdown.live-markdown');
+          && new URL(item.src).searchParams.get('extensionId') === 'RobKeys.live-markdown-pane');
         return { activeName, activeAt: Number.isFinite(activeAt) ? activeAt : null, activeId: frame ? new URL(frame.src).searchParams.get('id') : null };
       })()`,
     })).result?.result?.value;
