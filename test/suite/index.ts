@@ -77,7 +77,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('extension manifest keeps Markdown editing available in Restricted Mode', async () => {
-      const extension = vscode.extensions.getExtension('live-markdown.live-markdown');
+      const extension = vscode.extensions.getExtension('RobKeys.live-markdown-pane');
       assert.equal(extension?.packageJSON.capabilities?.untrustedWorkspaces?.supported, true);
       const properties = extension?.packageJSON.contributes.configuration.properties as Record<string, { scope?: string }>;
       for (const name of ['syntaxVisibility', 'readingPreset', 'fontFamily', 'fontSize', 'lineHeight', 'contentWidth', 'showLineNumbers', 'lineNumberStart', 'renderImages', 'renderTables', 'customCss', 'allowRemoteImages']) {
