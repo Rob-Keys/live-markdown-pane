@@ -3,7 +3,7 @@
   "displayName": "Live Markdown Pane Editor",
   "description": "Edit Markdown in a rendered VS Code pane with source mode, local settings, and document sync.",
   "version": "0.1.0",
-  "publisher": "live-markdown",
+  "publisher": "RobKeys",
   "repository": {
     "type": "git",
     "url": "https://github.com/Rob-Keys/live-markdown-pane.git"
