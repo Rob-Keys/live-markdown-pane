@@ -1,0 +1,315 @@
+{
+  "name": "live-markdown-pane",
+  "displayName": "Live Markdown Pane Editor",
+  "description": "Edit Markdown in a rendered VS Code pane with source mode, local settings, and document sync.",
+  "version": "0.1.0",
+  "publisher": "live-markdown",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rob-Keys/live-markdown-pane.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "markdown",
+    "markdown-editor",
+    "live-preview",
+    "custom-editor",
+    "single-pane"
+  ],
+  "activationEvents": [
+    "onCustomEditor:liveMarkdown.liveEditor"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Live Markdown editing works in Restricted Mode. Workspace CSS and remote images stay disabled until the workspace is trusted."
+    }
+  },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "liveMarkdown.liveEditor",
+        "displayName": "Live Markdown",
+        "selector": [
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          },
+          {
+            "filenamePattern": "*.mdown"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "liveMarkdown.newDocument",
+        "title": "Live Markdown: New Document"
+      },
+      {
+        "command": "liveMarkdown.toggleSource",
+        "title": "Live Markdown: Toggle Source Mode"
+      },
+      {
+        "command": "liveMarkdown.openInTextEditor",
+        "title": "Live Markdown: Open in Text Editor"
+      },
+      {
+        "command": "liveMarkdown.chooseReadingPreset",
+        "title": "Live Markdown: Choose Reading Preset"
+      },
+      {
+        "command": "liveMarkdown.openSettings",
+        "title": "Live Markdown: Open Settings"
+      },
+      {
+        "command": "liveMarkdown.resetAppearance",
+        "title": "Live Markdown: Reset Appearance"
+      },
+      {
+        "command": "liveMarkdown.bold",
+        "title": "Live Markdown: Bold",
+        "icon": "$(bold)"
+      },
+      {
+        "command": "liveMarkdown.italic",
+        "title": "Live Markdown: Italic",
+        "icon": "$(italic)"
+      },
+      {
+        "command": "liveMarkdown.inlineCode",
+        "title": "Live Markdown: Inline Code"
+      },
+      {
+        "command": "liveMarkdown.insertLink",
+        "title": "Live Markdown: Insert Link"
+      },
+      {
+        "command": "liveMarkdown.save",
+        "title": "Live Markdown: Save"
+      },
+      {
+        "command": "liveMarkdown.undo",
+        "title": "Live Markdown: Undo"
+      },
+      {
+        "command": "liveMarkdown.redo",
+        "title": "Live Markdown: Redo"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "liveMarkdown.toggleSource",
+          "group": "navigation@1"
+        },
+        {
+          "command": "liveMarkdown.chooseReadingPreset",
+          "group": "navigation@2"
+        },
+        {
+          "command": "liveMarkdown.openSettings",
+          "group": "navigation@3"
+        },
+        {
+          "command": "liveMarkdown.resetAppearance",
+          "group": "navigation@4"
+        },
+        {
+          "command": "liveMarkdown.openInTextEditor",
+          "group": "navigation@5"
+        },
+        {
+          "command": "liveMarkdown.undo",
+          "group": "navigation@6"
+        },
+        {
+          "command": "liveMarkdown.redo",
+          "group": "navigation@7"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "liveMarkdown.bold",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "activeCustomEditorId == liveMarkdown.liveEditor"
+      },
+      {
+        "command": "liveMarkdown.italic",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "activeCustomEditorId == liveMarkdown.liveEditor"
+      },
+      {
+        "command": "liveMarkdown.save",
+        "key": "ctrl+s",
+        "mac": "cmd+s",
+        "when": "activeCustomEditorId == liveMarkdown.liveEditor"
+      },
+      {
+        "command": "liveMarkdown.undo",
+        "key": "ctrl+z",
+        "mac": "cmd+z",
+        "when": "activeCustomEditorId == liveMarkdown.liveEditor"
+      },
+      {
+        "command": "liveMarkdown.redo",
+        "key": "ctrl+y",
+        "mac": "cmd+shift+z",
+        "when": "activeCustomEditorId == liveMarkdown.liveEditor"
+      }
+    ],
+    "configuration": {
+      "title": "Live Markdown",
+      "properties": {
+        "liveMarkdown.syntaxVisibility": {
+          "type": "string",
+          "scope": "resource",
+          "enum": [
+            "activeLine",
+            "activeBlock",
+            "always"
+          ],
+          "default": "activeLine",
+          "description": "When Markdown syntax markers are visible."
+        },
+        "liveMarkdown.readingPreset": {
+          "type": "string",
+          "scope": "resource",
+          "enum": [
+            "default",
+            "compact",
+            "comfortable"
+          ],
+          "default": "default",
+          "description": "Reading typography preset."
+        },
+        "liveMarkdown.fontFamily": {
+          "type": "string",
+          "scope": "resource",
+          "default": "inherit",
+          "description": "Editor font family or a comma-separated local font list."
+        },
+        "liveMarkdown.fontSize": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "scope": "resource",
+          "minimum": 10,
+          "maximum": 32,
+          "default": null,
+          "description": "Editor font size in CSS pixels."
+        },
+        "liveMarkdown.lineHeight": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "scope": "resource",
+          "minimum": 1.2,
+          "maximum": 2.2,
+          "default": null,
+          "description": "Unitless editor line height."
+        },
+        "liveMarkdown.contentWidth": {
+          "type": [
+            "string",
+            "number",
+            "null"
+          ],
+          "scope": "resource",
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 40,
+              "maximum": 120
+            },
+            {
+              "type": "string",
+              "enum": [
+                "full"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Content width in ch, 40–120, or full."
+        },
+        "liveMarkdown.showLineNumbers": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "Show source line numbers."
+        },
+        "liveMarkdown.lineNumberStart": {
+          "type": "integer",
+          "scope": "resource",
+          "minimum": 1,
+          "default": 1,
+          "description": "First displayed source line number."
+        },
+        "liveMarkdown.renderImages": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "Render permitted local images."
+        },
+        "liveMarkdown.renderTables": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "Render inactive Markdown tables."
+        },
+        "liveMarkdown.customCss": {
+          "type": "string",
+          "scope": "resource",
+          "default": "",
+          "description": "Path to one local presentation stylesheet."
+        },
+        "liveMarkdown.allowRemoteImages": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "Allow HTTPS images in trusted workspaces."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.js",
+    "compile-tests": "node test/cleanTests.js && tsc -p tsconfig.test.json",
+    "test:integration": "npm run compile-tests && node test/runTests.js",
+    "test:minimum": "npm run compile-tests && node test/runTests.js --version=1.85.0",
+    "watch": "node esbuild.js --watch",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/language": "^6.11.0",
+    "@codemirror/search": "^6.5.10",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.5",
+    "@lezer/markdown": "^1.4.3",
+    "@types/node": "^22.10.2",
+    "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "live-markdown-memory-probe",
+  "displayName": "Live Markdown Memory Probe",
+  "publisher": "local",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./extension.js",
+  "extensionDependencies": [
+    "live-markdown.live-markdown"
+  ],
+  "activationEvents": [
+    "onCommand:liveMarkdownMemoryProbe.openFixtures"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "liveMarkdownMemoryProbe.openFixtures",
+        "title": "Live Markdown Memory Probe: Open Fixture Set"
+      }
+    ]
+  }
+}

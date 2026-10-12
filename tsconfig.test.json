@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".test-dist",
+    "types": ["node", "vscode"],
+    "sourceMap": false
+  },
+  "include": ["test/**/*.ts", "src/documentBridge.ts", "src/protocol.ts", "src/documentAccess.ts"]
+}

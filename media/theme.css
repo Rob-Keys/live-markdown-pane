@@ -1,0 +1,94 @@
+:root {
+  color-scheme: light dark;
+  --lm-fg: var(--vscode-editor-foreground, #222);
+  --lm-bg: var(--vscode-editor-background, #fff);
+  --lm-muted: var(--vscode-descriptionForeground, #777);
+  --lm-border: var(--vscode-panel-border, #8886);
+  --lm-link: var(--vscode-textLink-foreground, #2677c9);
+  --lm-code-bg: var(--vscode-textCodeBlock-background, #8881);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--lm-bg); color: var(--lm-fg); }
+body { overflow: auto; font-family: var(--vscode-editor-font-family, monospace); }
+#editor { min-height: 100vh; position: relative; }
+.cm-editor { min-height: 100vh; background: var(--lm-bg); color: var(--lm-fg); font-family: var(--lm-font-family, var(--vscode-editor-font-family, monospace)); font-size: var(--lm-font-size, 16px); line-height: var(--lm-line-height, 1.6); }
+.cm-editor .cm-scroller { overflow: visible; font-family: inherit; }
+.cm-editor .cm-content { max-width: var(--lm-content-width, 80ch); margin: 0 auto; padding: 2.2rem 1.5rem 5rem; caret-color: var(--vscode-editorCursor-foreground, var(--lm-fg)); }
+.lm-full-width .cm-content { max-width: 100%; }
+.cm-editor .cm-line { padding: 0; }
+.cm-editor .cm-gutters { position: sticky; left: 0; z-index: 2; background: var(--lm-bg); color: var(--lm-muted); border: 0; }
+.cm-editor.cm-focused { outline: 1px solid var(--vscode-focusBorder, transparent); outline-offset: -1px; }
+.cm-editor.cm-focused .cm-content:focus { outline: none; }
+.cm-editor .cm-selectionBackground, .cm-editor ::selection { background: var(--vscode-editor-selectionBackground, #3483cc55) !important; }
+body.vscode-high-contrast .cm-editor ::selection,
+body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-editor-background, Canvas) !important; }
+.cm-editor .cm-cursor { border-left-color: var(--vscode-editorCursor-foreground, currentColor); }
+.lm-heading { font-weight: 650; line-height: 1.25; padding-top: .75em !important; }
+.lm-heading-1 { font-size: 2em; }
+.lm-heading-2 { font-size: 1.65em; }
+.lm-heading-3 { font-size: 1.35em; }
+.lm-heading-4 { font-size: 1.15em; }
+.lm-heading-5, .lm-heading-6 { font-size: 1em; }
+.lm-strong { font-weight: 700; }
+.lm-emphasis { font-style: italic; }
+.lm-inline-code { font-family: var(--vscode-editor-font-family, monospace); background: var(--lm-code-bg); border-radius: 3px; padding: .05em .25em; }
+.lm-strike { text-decoration: line-through; }
+.lm-link { color: var(--lm-link); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lm-link) 40%, transparent); text-underline-offset: .12em; }
+.lm-code-line { background: var(--lm-code-bg); font-family: var(--vscode-editor-font-family, monospace); }
+.lm-blockquote { border-left: 3px solid var(--lm-border); padding-left: 1em !important; color: var(--lm-muted); }
+.lm-task-widget { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .25em 0 0; border-radius: 3px; }
+.lm-task-widget input:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
+.lm-task-widget input { accent-color: var(--vscode-checkbox-foreground, var(--lm-link)); width: 1em; height: 1em; margin: 0; }
+.lm-table-widget { margin: .8em 0 1em; max-width: 100%; overflow-x: auto; border: 1px solid var(--lm-border); border-radius: 4px; }
+.lm-table-widget table { border-collapse: collapse; width: 100%; }
+.lm-table-widget th, .lm-table-widget td { min-width: 5rem; text-align: left; padding: .4em .65em; border-right: 1px solid var(--lm-border); border-bottom: 1px solid var(--lm-border); }
+.lm-table-widget th { font-weight: 650; background: var(--lm-code-bg); }
+.lm-table-widget tr:last-child td { border-bottom: 0; }
+.lm-table-widget th:last-child, .lm-table-widget td:last-child { border-right: 0; }
+.lm-table-widget th:focus-visible, .lm-table-widget td:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: -2px; }
+.lm-image-widget { display: inline-block; vertical-align: middle; max-width: 100%; cursor: text; }
+.lm-image-widget:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
+.lm-image-widget img { display: block; max-width: min(100%, 48rem); max-height: 32rem; object-fit: contain; }
+.lm-image-widget span { color: var(--lm-muted); font-size: .9em; }
+.lm-status { position: fixed; right: .75rem; bottom: .75rem; z-index: 9; max-width: min(35rem, calc(100vw - 2rem)); border: 1px solid var(--lm-border); border-radius: 5px; padding: .55rem .8rem; color: var(--vscode-errorForeground, var(--lm-fg)); background: var(--vscode-editorWidget-background, var(--lm-bg)); box-shadow: 0 2px 12px #0002; }
+.lm-status[hidden] { display: none; }
+.lm-recovery { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: .75rem; padding: .7rem 1rem; border-bottom: 1px solid var(--lm-border); background: var(--vscode-editorWarning-background, var(--lm-bg)); font: 13px/1.4 var(--vscode-font-family, sans-serif); }
+.lm-recovery span { flex: 1; }
+.lm-recovery button { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #1768b3); border: 0; border-radius: 3px; padding: .35rem .65rem; cursor: pointer; }
+.lm-recovery button:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
+.lm-recovery-source { flex: 1 0 100%; min-height: 6rem; max-height: 14rem; resize: vertical; color: var(--lm-fg); background: var(--lm-bg); border: 1px solid var(--lm-border); font: 13px/1.45 var(--vscode-editor-font-family, monospace); }
+.lm-recovery-source[hidden] { display: none; }
+.cm-editor .cm-activeLine { background: transparent; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; } }
+@media (forced-colors: active) {
+  :root {
+    --lm-fg: CanvasText;
+    --lm-bg: Canvas;
+    --lm-muted: GrayText;
+    --lm-border: ButtonBorder;
+    --lm-link: LinkText;
+    --lm-code-bg: Canvas;
+  }
+  .cm-editor, .cm-editor .cm-gutters, .lm-table-widget, .lm-recovery-source {
+    forced-color-adjust: auto;
+    color: CanvasText;
+    background: Canvas;
+  }
+  .cm-editor.cm-focused,
+  .lm-task-widget input:focus-visible,
+  .lm-table-widget th:focus-visible,
+  .lm-table-widget td:focus-visible,
+  .lm-image-widget:focus-visible,
+  .lm-recovery button:focus-visible {
+    outline-color: Highlight;
+  }
+  .cm-editor .cm-cursor { border-left-color: Highlight; }
+  .cm-editor ::selection { background: Highlight !important; color: HighlightText !important; }
+  .lm-link { color: LinkText; text-decoration: underline; }
+  .lm-blockquote { border-left-color: ButtonText; }
+  .lm-table-widget th, .lm-table-widget td { border-color: ButtonBorder; }
+  .lm-table-widget th { background: Canvas; }
+  .lm-recovery { color: CanvasText; background: Canvas; border-color: ButtonBorder; }
+  .lm-recovery button { color: ButtonText; background: ButtonFace; border: 1px solid ButtonBorder; }
+  .lm-task-widget input { accent-color: Highlight; }
+}
