@@ -3,6 +3,19 @@
   "displayName": "Live Markdown Pane Editor",
   "description": "Edit Markdown in a rendered VS Code pane with source mode, local settings, and document sync.",
   "version": "1.0.1",
+  "packageManager": "npm@12.2.1",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": ">=26.13.0",
+      "onFail": "error"
+    },
+    "packageManager": {
+      "name": "npm",
+      "version": "12.2.1",
+      "onFail": "error"
+    }
+  },
   "publisher": "RobKeys",
   "repository": {
     "type": "git",
@@ -268,17 +281,20 @@
     "vscode:prepublish": "npm run build"
   },
   "devDependencies": {
-    "@codemirror/commands": "^6.8.1",
-    "@codemirror/lang-markdown": "^6.3.2",
-    "@codemirror/language": "^6.11.0",
-    "@codemirror/search": "^6.5.10",
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.36.5",
-    "@lezer/markdown": "^1.4.3",
-    "@types/node": "^22.10.2",
-    "@types/vscode": "^1.85.0",
-    "@vscode/test-electron": "^3.1.0",
-    "esbuild": "^0.25.0",
-    "typescript": "^5.7.2"
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/search": "6.7.2",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/markdown": "1.8.1",
+    "@types/node": "26.6.6",
+    "@types/vscode": "1.144.0",
+    "@vscode/test-electron": "3.1.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

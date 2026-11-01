@@ -47,12 +47,14 @@ Local images are limited to files below the document's workspace folder, or the 
 ## Development
 
 ```sh
-npm install
+npm ci
 npm run build
 ```
 
+Use Node.js 26.13.0 or later with npm 12.2.1. The default development version is pinned in `.nvmrc`; CI uses Node 26.13.0.
+
 Open this folder in VS Code and press F5 to launch the Extension Development Host. The automated Extension Host suite covers document synchronization, undo/redo, recovery (including closing immediately after an uncommitted draft reaches the host), source-mode transitions, URI-backed providers, read-only files, no-op byte preservation, Markdown editing, and split-view synchronization after rename. It passes on the current VS Code and the declared minimum, 1.85.0.
 
-GitHub Actions runs the build and integration suite on macOS, Linux, and Windows against VS Code 1.85.0 and current stable. Linux uses Xvfb; it checks Linux VS Code behavior without claiming native compositor or input-method coverage.
+GitHub Actions runs the build and integration suite on macOS, Linux, and Windows with Node 26.13.0, against VS Code 1.85.0 and current stable. Linux uses Xvfb; it checks Linux VS Code behavior without claiming native compositor or input-method coverage.
 
 Manual macOS smoke checks cover Explorer opening, Save As, rendered widgets and keyboard navigation, clipboard source fidelity, source-mode selection and scroll preservation, image layout changes, find/replace, dead-key input, accessibility roles, hidden-tab suspension, and the built-in High Contrast theme. Automated integration suites pass on VS Code 1.140.0 and 1.85.0 for macOS and in a Linux x64 Debian container under Xvfb; the Linux run validates the Linux VS Code and extension-host behavior, not a physical Linux desktop compositor. Local 100-sample animation-frame, Chromium compositor-screencast, extension-host edit-preparation, and acknowledgement observations inform the implementation limits; callback and screencast timing do not measure physical display latency. One real SSH-backed workspace round trip has been verified between VS Code 1.85 on macOS and Debian 12 x64; WSL and other remote configurations remain open. Windows, screen-reader interaction, OS forced-colors mode, and real IME composition still need release validation.
