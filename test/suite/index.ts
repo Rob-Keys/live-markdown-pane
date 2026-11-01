@@ -11,7 +11,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { GFM } from '@lezer/markdown';
 import { changeSetToSourceChanges, changesOverlap, composeChangeSets, sourceChangesToSet } from '../../src/rebase';
 import { isAbsoluteLocalPath, restrictedWorkspaceCssPath, screenReaderModeEnabled, settingsScopeChoices, stripCssImports } from '../../src/configuration';
-import { changesMayAffectReferenceDefinitions, linkTarget, referenceDefinitions } from '../../src/webview/references';
+import { changesMayAffectReferenceDefinitions, linkTarget, linkTargetAt, referenceDefinitions } from '../../src/webview/references';
 import { changesMayAffectTableSyntax, isTableWidgetEligible, readImage, tableCellRuns, tableNodeAt, tableSelectionKey, visibleTableNodes } from '../../src/webview/liveRendering';
 import { TableWidget, tableLinkKeyboardIntent } from '../../src/webview/widgets';
 import { markdownBackspaceEdit, markdownEnterEdit } from '../../src/webview/listEditing';
@@ -296,13 +296,19 @@ export async function run(): Promise<void> {
       assert.equal(referenceDefinitions(definitionState).get('late'), 'assets/new.png');
   });
 
-  await runCase('inline and reference links resolve destinations from their opening bracket', async () => {
-      const source = '[inline](https://example.com) and [manual][docs]\n\n[docs]: ../manual.md\n';
+  await runCase('inline and reference links resolve in paragraphs and headings for follow clicks', async () => {
+      const source = '[inline](https://example.com) and [manual][docs]\n\n## [heading](https://example.net) and [Guide][docs]\n\n[docs]: ../manual.md\n';
       const state = EditorState.create({ doc: source, extensions: [markdown({ extensions: GFM })] });
       const links: Array<{ from: number; to: number }> = [];
       syntaxTree(state).iterate({ enter: node => { if (node.name === 'Link') links.push({ from: node.from, to: node.to }); } });
-      assert.equal(links.length, 2);
-      assert.deepEqual(links.map(link => linkTarget(state, link.from, link.to)), ['https://example.com', '../manual.md']);
+      assert.equal(links.length, 4);
+      assert.deepEqual(links.map(link => linkTarget(state, link.from, link.to)), ['https://example.com', '../manual.md', 'https://example.net', '../manual.md']);
+      assert.deepEqual([
+        linkTargetAt(state, source.indexOf('inline') + 1),
+        linkTargetAt(state, source.indexOf('manual') + 1),
+        linkTargetAt(state, source.indexOf('heading') + 1),
+        linkTargetAt(state, source.indexOf('Guide') + 1),
+      ], ['https://example.com', '../manual.md', 'https://example.net', '../manual.md']);
   });
 
   await runCase('image parser keeps alt text separate from inline and reference destinations', async () => {

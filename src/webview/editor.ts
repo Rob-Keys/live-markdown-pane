@@ -9,7 +9,7 @@ import { CommandMessage, EditorSettings, HostMessage, SourceChange, StatusMessag
 import { liveRendering } from './liveRendering';
 import { CompositionGate } from './composition';
 import { documentByteSize, shouldOpenInSourceMode, shouldReduceRendering, shouldUseMarkdownLanguage, sourceChangesByteSize } from './documentMetrics';
-import { linkTarget } from './references';
+import { linkTargetAt } from './references';
 import { markdownBackspaceEdit, markdownEnterEdit } from './listEditing';
 import { renderingWhenVisible } from './renderingVisibility';
 import { changeSetToSourceChanges, changesOverlap, composeChangeSets, diffChangeSet, sourceChangesToSet } from '../rebase';
@@ -373,25 +373,7 @@ function followMarkdownLink(event: MouseEvent, editor: EditorView): boolean {
   if (event.button !== 0 || (!event.ctrlKey && !event.metaKey)) return false;
   const position = editor.posAtCoords({ x: event.clientX, y: event.clientY });
   if (position === null) return false;
-  const tree = syntaxTree(editor.state);
-  let node = tree.resolveInner(position);
-  while (!['Link', 'Autolink', 'URL'].includes(node.name) && node.parent) node = node.parent;
-  let target: string | undefined;
-  if (node.name === 'Link') target = linkTarget(editor.state, node.from, node.to);
-  else {
-    let url = node;
-    if (node.name === 'Autolink') {
-      for (let child = node.firstChild; child; child = child.nextSibling) {
-        if (child.name === 'URL') { url = child; break; }
-      }
-    }
-    if (url.name !== 'URL') return false;
-    let context = url.parent;
-    while (context && !['Image', 'Link', 'Autolink'].includes(context.name) && context.parent) context = context.parent;
-    if (context?.name === 'Image') return false;
-    target = editor.state.sliceDoc(url.from, url.to);
-    if (!/^https?:\/\//i.test(target)) return false;
-  }
+  const target = linkTargetAt(editor.state, position);
   if (!target) return false;
   if (target.startsWith('#')) {
     let slug: string;

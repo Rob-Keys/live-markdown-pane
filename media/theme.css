@@ -33,7 +33,8 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
 .lm-emphasis { font-style: italic; }
 .lm-inline-code { font-family: var(--vscode-editor-font-family, monospace); background: var(--lm-code-bg); border-radius: 3px; padding: .05em .25em; }
 .lm-strike { text-decoration: line-through; }
-.lm-link { color: var(--lm-link); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--lm-link) 40%, transparent); text-underline-offset: .12em; }
+.lm-link { color: var(--lm-link); font-weight: 550; text-decoration: underline; text-decoration-color: var(--lm-link); text-decoration-thickness: .08em; text-underline-offset: .14em; background: color-mix(in srgb, var(--lm-link) 8%, transparent); border-radius: 2px; }
+.lm-link:hover { text-decoration-thickness: .13em; background: color-mix(in srgb, var(--lm-link) 16%, transparent); }
 .lm-code-line { background: var(--lm-code-bg); font-family: var(--vscode-editor-font-family, monospace); }
 .lm-blockquote { border-left: 3px solid var(--lm-border); padding-left: 1em !important; color: var(--lm-muted); }
 .lm-task-widget { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .25em 0 0; border-radius: 3px; }
@@ -59,6 +60,62 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
 .lm-recovery-source { flex: 1 0 100%; min-height: 6rem; max-height: 14rem; resize: vertical; color: var(--lm-fg); background: var(--lm-bg); border: 1px solid var(--lm-border); font: 13px/1.45 var(--vscode-editor-font-family, monospace); }
 .lm-recovery-source[hidden] { display: none; }
 .cm-editor .cm-activeLine { background: transparent; }
+.cm-editor .cm-panels {
+  color: var(--vscode-foreground, var(--lm-fg));
+  background: var(--vscode-editorWidget-background, var(--lm-bg));
+  font: 13px/1.4 var(--vscode-font-family, sans-serif);
+}
+.cm-editor .cm-panels-top { border-bottom: 1px solid var(--vscode-widget-border, var(--lm-border)); }
+.cm-editor .cm-panels-bottom { border-top: 1px solid var(--vscode-widget-border, var(--lm-border)); }
+.cm-editor .cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 8px 12px;
+  background: var(--vscode-editorWidget-background, var(--lm-bg));
+  color: var(--vscode-foreground, var(--lm-fg));
+  font: 13px/1.4 var(--vscode-font-family, sans-serif);
+}
+.cm-editor .cm-search label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cm-editor .cm-search input:not([type="checkbox"]) {
+  min-width: 10rem;
+  height: 26px;
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-input-border, var(--lm-border));
+  border-radius: 2px;
+  outline: none;
+  color: var(--vscode-input-foreground, var(--lm-fg));
+  background: var(--vscode-input-background, var(--lm-bg));
+  font: inherit;
+}
+.cm-editor .cm-search input:not([type="checkbox"]):focus {
+  border-color: var(--vscode-focusBorder, #007fd4);
+  outline: 1px solid var(--vscode-focusBorder, #007fd4);
+  outline-offset: -1px;
+}
+.cm-editor .cm-search input[type="checkbox"] { margin: 0; accent-color: var(--vscode-checkbox-background, var(--lm-link)); }
+.cm-editor .cm-search button {
+  min-height: 26px;
+  padding: 3px 9px;
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: 2px;
+  color: var(--vscode-button-foreground, #fff);
+  background: var(--vscode-button-background, #0e639c);
+  font: inherit;
+  cursor: pointer;
+}
+.cm-editor .cm-search button:hover { background: var(--vscode-button-hoverBackground, var(--vscode-button-background, #0e639c)); }
+.cm-editor .cm-search button:focus-visible { outline: 1px solid var(--vscode-focusBorder, #007fd4); outline-offset: 1px; }
+.cm-editor .cm-search button[name="close"] {
+  margin-left: auto;
+  border-color: var(--vscode-button-secondaryBorder, var(--lm-border));
+  color: var(--vscode-button-secondaryForeground, var(--lm-fg));
+  background: var(--vscode-button-secondaryBackground, transparent);
+}
+.cm-editor .cm-search button[name="close"]:hover { background: var(--vscode-button-secondaryHoverBackground, var(--lm-code-bg)); }
+.cm-editor .cm-searchMatch { background: var(--vscode-editor-findMatchBackground, #ea5c0055); }
+.cm-editor .cm-searchMatch-selected { background: var(--vscode-editor-findMatchHighlightBackground, #f5d80288); outline: 1px solid var(--vscode-editor-findMatchBorder, transparent); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0s !important; animation-duration: 0s !important; } }
 @media (forced-colors: active) {
   :root {
@@ -84,7 +141,9 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
   }
   .cm-editor .cm-cursor { border-left-color: Highlight; }
   .cm-editor ::selection { background: Highlight !important; color: HighlightText !important; }
-  .lm-link { color: LinkText; text-decoration: underline; }
+  .cm-editor .cm-searchMatch { background: Mark; color: MarkText; }
+  .cm-editor .cm-searchMatch-selected { outline-color: Highlight; }
+  .lm-link { color: LinkText; text-decoration: underline; background: transparent; }
   .lm-blockquote { border-left-color: ButtonText; }
   .lm-table-widget th, .lm-table-widget td { border-color: ButtonBorder; }
   .lm-table-widget th { background: Canvas; }

@@ -42,6 +42,26 @@ export function linkTarget(state: EditorState, from: number, to: number): string
   return label ? referenceTarget(state, label) : undefined;
 }
 
+/** Resolve the destination under a pointer, whether the link is in a paragraph or heading. */
+export function linkTargetAt(state: EditorState, position: number): string | undefined {
+  let node = syntaxTree(state).resolveInner(Math.min(Math.max(position, 0), state.doc.length));
+  while (!['Link', 'Autolink', 'URL'].includes(node.name) && node.parent) node = node.parent;
+  if (node.name === 'Link') return linkTarget(state, node.from, node.to);
+
+  let url = node;
+  if (node.name === 'Autolink') {
+    for (let child = node.firstChild; child; child = child.nextSibling) {
+      if (child.name === 'URL') { url = child; break; }
+    }
+  }
+  if (url.name !== 'URL') return undefined;
+  let context = url.parent;
+  while (context && !['Image', 'Link', 'Autolink'].includes(context.name) && context.parent) context = context.parent;
+  if (context?.name === 'Image') return undefined;
+  const target = state.sliceDoc(url.from, url.to);
+  return /^https?:\/\//i.test(target) ? target : undefined;
+}
+
 export function referenceDefinitions(state: EditorState): Map<string, string> {
   const definitions = new Map<string, string>();
   for (let number = 1; number <= state.doc.lines; number++) {

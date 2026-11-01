@@ -355,12 +355,19 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
           values.push(Decoration.mark({ class: 'lm-strike' }).range(node.from, node.to));
         } else if (name === 'Link') {
           const label = linkLabelRange(view.state, node);
-          if (label && label.from < label.to) values.push(Decoration.mark({ class: 'lm-link' }).range(label.from, label.to));
+          if (label && label.from < label.to) {
+            const target = tableLinkTarget(view.state, node, references());
+            values.push(Decoration.mark({ class: 'lm-link', ...(target ? { attributes: { title: linkTooltip(target) } } : {}) }).range(label.from, label.to));
+          }
         } else if (name === 'Autolink') {
           const label = linkLabelRange(view.state, node);
-          if (label && label.from < label.to) values.push(Decoration.mark({ class: 'lm-link' }).range(label.from, label.to));
+          if (label && label.from < label.to) {
+            const target = linkTargetInNode(view.state, node);
+            values.push(Decoration.mark({ class: 'lm-link', ...(target ? { attributes: { title: linkTooltip(target) } } : {}) }).range(label.from, label.to));
+          }
         } else if (name === 'URL' && !['Link', 'Image', 'Autolink'].includes(linkContext?.name ?? '')) {
-          values.push(Decoration.mark({ class: 'lm-link' }).range(node.from, node.to));
+          const target = view.state.sliceDoc(node.from, node.to);
+          values.push(Decoration.mark({ class: 'lm-link', attributes: { title: linkTooltip(target) } }).range(node.from, node.to));
         } else if (name === 'Image') {
           const imageNode = tree.resolveInner(Math.min(node.to, node.from + 2));
           const image = imageNode.name === 'Image' ? readImage(view.state, imageNode) : undefined;
@@ -521,6 +528,18 @@ function linkLabelRange(state: EditorState, link: SyntaxNode): { from: number; t
     else if (opening && (marker === ']' || marker === '>')) return { from: opening.to, to: child.from };
   }
   return undefined;
+}
+
+function linkTargetInNode(state: EditorState, link: SyntaxNode): string | undefined {
+  for (let child = link.firstChild; child; child = child.nextSibling) {
+    if (child.name === 'URL') return state.sliceDoc(child.from, child.to);
+  }
+  return undefined;
+}
+
+function linkTooltip(target: string): string {
+  const follow = /Mac|iPhone|iPad/.test(navigator.platform) ? 'Cmd-click' : 'Ctrl-click';
+  return `${target} (${follow} to follow)`;
 }
 
 /** Identifies only tables whose rendered/source state depends on this selection. */
