@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as vscode from 'vscode';
 import { strict as assert } from 'node:assert';
+import { build } from 'esbuild';
 import { DocumentBridge } from '../../src/documentBridge';
 import { isDocumentReadonly } from '../../src/documentAccess';
 import { ChangeSet, EditorSelection, EditorState } from '@codemirror/state';
@@ -309,6 +310,32 @@ export async function run(): Promise<void> {
         linkTargetAt(state, source.indexOf('heading') + 1),
         linkTargetAt(state, source.indexOf('Guide') + 1),
       ], ['https://example.com', '../manual.md', 'https://example.net', '../manual.md']);
+  });
+
+  await runCase('rendered link labels have visible styling and destination hover text', async () => {
+      const extensionRoot = vscode.Uri.file(path.resolve(__dirname, '../../..'));
+      const bundle = await build({
+        entryPoints: [path.join(extensionRoot.fsPath, 'test/webview/linkRendering.ts')],
+        bundle: true, write: false, platform: 'browser', format: 'iife',
+      });
+      const panel = vscode.window.createWebviewPanel('liveMarkdown.linkRenderingTest', 'Link rendering test', vscode.ViewColumn.One, {
+        enableScripts: true, localResourceRoots: [extensionRoot],
+      });
+      try {
+        const result = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Link rendering webview timed out')), 15000);
+          panel.webview.onDidReceiveMessage((message: { error?: string }) => {
+            clearTimeout(timeout);
+            if (message.error) reject(new Error(message.error));
+            else resolve();
+          });
+        });
+        const theme = panel.webview.asWebviewUri(vscode.Uri.joinPath(extensionRoot, 'media/theme.css'));
+        panel.webview.html = `<!doctype html><html><head><link rel="stylesheet" href="${theme}"></head><body><div id="editor"></div><script>${bundle.outputFiles[0].text}</script></body></html>`;
+        await result;
+      } finally {
+        panel.dispose();
+      }
   });
 
   await runCase('image parser keeps alt text separate from inline and reference destinations', async () => {

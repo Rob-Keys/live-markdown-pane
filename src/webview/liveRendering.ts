@@ -1,7 +1,7 @@
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { EditorState, Range, StateEffect, StateField, Transaction } from '@codemirror/state';
-import { SyntaxNode } from '@lezer/common';
+import { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { EditorSettings, isPermittedImageSource } from '../protocol';
 import { ImageWidget, ListMarker, TableAlignment, TableTextRun, TableWidget, TaskCheckbox, TextWidget } from './widgets';
 import { changesMayAffectReferenceDefinitions, normalizeReferenceLabel, referenceDefinitions, unescapeMarkdown } from './references';
@@ -320,7 +320,7 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
       };
       const selected = (from: number, to: number) => view.state.selection.ranges.some(range => range.empty ? range.head >= from && range.head <= to : range.from < to && range.to > from);
       const visited = new Set<string>();
-      const decorate = (node: SyntaxNode) => {
+      const decorate = (node: SyntaxNodeRef) => {
         const id = `${node.name}:${node.from}:${node.to}`;
         if (visited.has(id)) return;
         visited.add(id);
@@ -354,15 +354,18 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
         } else if (name === 'Strikethrough') {
           values.push(Decoration.mark({ class: 'lm-strike' }).range(node.from, node.to));
         } else if (name === 'Link') {
-          const label = linkLabelRange(view.state, node);
+          // Tree.iterate supplies a cursor; child traversal needs its stable node.
+          const link = node.node;
+          const label = linkLabelRange(view.state, link);
           if (label && label.from < label.to) {
-            const target = tableLinkTarget(view.state, node, references());
+            const target = tableLinkTarget(view.state, link, references());
             values.push(Decoration.mark({ class: 'lm-link', ...(target ? { attributes: { title: linkTooltip(target) } } : {}) }).range(label.from, label.to));
           }
         } else if (name === 'Autolink') {
-          const label = linkLabelRange(view.state, node);
+          const link = node.node;
+          const label = linkLabelRange(view.state, link);
           if (label && label.from < label.to) {
-            const target = linkTargetInNode(view.state, node);
+            const target = linkTargetInNode(view.state, link);
             values.push(Decoration.mark({ class: 'lm-link', ...(target ? { attributes: { title: linkTooltip(target) } } : {}) }).range(label.from, label.to));
           }
         } else if (name === 'URL' && !['Link', 'Image', 'Autolink'].includes(linkContext?.name ?? '')) {
