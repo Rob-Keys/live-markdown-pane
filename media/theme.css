@@ -40,7 +40,10 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
 .lm-task-widget { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .25em 0 0; border-radius: 3px; }
 .lm-task-widget input:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
 .lm-task-widget input { accent-color: var(--vscode-checkbox-foreground, var(--lm-link)); width: 1em; height: 1em; margin: 0; }
-.lm-table-widget { margin: .8em 0 1em; max-width: 100%; overflow-x: auto; border: 1px solid var(--lm-border); border-radius: 4px; }
+/* CodeMirror measures block widget bounds without margins. Keep table spacing
+   inside those bounds so hit testing stays aligned with the lines below. */
+.lm-table-widget { padding: .8em 0 1em; max-width: 100%; }
+.lm-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid var(--lm-border); border-radius: 4px; }
 .lm-table-widget table { border-collapse: collapse; width: 100%; }
 .lm-table-widget th, .lm-table-widget td { min-width: 5rem; text-align: left; padding: .4em .65em; border-right: 1px solid var(--lm-border); border-bottom: 1px solid var(--lm-border); }
 .lm-table-widget th { font-weight: 650; background: var(--lm-code-bg); }

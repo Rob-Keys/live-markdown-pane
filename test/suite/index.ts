@@ -338,6 +338,30 @@ export async function run(): Promise<void> {
       }
   });
 
+  await runCase('cursor hit testing follows rendered text geometry', async () => {
+      const extensionRoot = vscode.Uri.file(path.resolve(__dirname, '../../..'));
+      const bundle = await build({
+        entryPoints: [path.join(extensionRoot.fsPath, 'test/webview/cursorGeometry.ts')],
+        bundle: true, write: false, platform: 'browser', format: 'iife',
+      });
+      const panel = vscode.window.createWebviewPanel('liveMarkdown.cursorGeometryTest', 'Cursor geometry test', vscode.ViewColumn.One, {
+        enableScripts: true, localResourceRoots: [extensionRoot],
+      });
+      try {
+        const result = new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Cursor geometry webview timed out')), 30000);
+          panel.webview.onDidReceiveMessage((message: { error?: string }) => {
+            clearTimeout(timeout);
+            if (message.error) reject(new Error(message.error));
+            else resolve();
+          });
+        });
+        const theme = panel.webview.asWebviewUri(vscode.Uri.joinPath(extensionRoot, 'media/theme.css'));
+        panel.webview.html = `<!doctype html><html><head><link rel="stylesheet" href="${theme}"></head><body><div id="editor"></div><script>${bundle.outputFiles[0].text}</script></body></html>`;
+        await result;
+      } finally { panel.dispose(); }
+  });
+
   await runCase('image parser keeps alt text separate from inline and reference destinations', async () => {
       const source = '![Tall image](<assets/tall image.svg>) and ![Referenced image][landscape]\n\n[landscape]: assets/landscape.svg\n';
       const state = EditorState.create({ doc: source, extensions: [markdown({ extensions: GFM })] });

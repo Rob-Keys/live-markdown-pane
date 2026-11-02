@@ -126,7 +126,10 @@ export class TableWidget extends WidgetType {
       });
       table.append(tr);
     });
-    wrapper.append(table);
+    const scroller = document.createElement('div');
+    scroller.className = 'lm-table-scroll';
+    scroller.append(table);
+    wrapper.append(scroller);
     return wrapper;
   }
   ignoreEvent(): boolean { return false; }
