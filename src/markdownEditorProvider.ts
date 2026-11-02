@@ -3,10 +3,10 @@ import { randomBytes } from 'crypto';
 import { DocumentBridge } from './documentBridge';
 import { isAbsoluteLocalPath, readCustomCss, readCustomCssPath, readSettings } from './configuration';
 import { isDocumentReadonly } from './documentAccess';
-import { WebviewMessage, isPermittedImageSource, isWebviewMessage } from './protocol';
+import { EditorCommand, WebviewMessage, isPermittedImageSource, isWebviewMessage } from './protocol';
 import { documentDirectory, isUriWithin } from './resources';
 
-type EditorAction = 'toggleSource' | 'bold' | 'italic' | 'inlineCode' | 'insertLink' | 'undo' | 'redo' | 'save' | 'openInTextEditor';
+type EditorAction = EditorCommand;
 type EditorClient = { panel: vscode.WebviewPanel; document: vscode.TextDocument; sessionId: string; bridgeClient: { panel: vscode.WebviewPanel; sessionId: string; ready: boolean }; pendingCommands: EditorAction[]; pendingCommandOverflow: boolean; resourceRequests: Set<string>; cssWatcher?: vscode.FileSystemWatcher; customCss?: string; allowRemoteImages?: boolean; trusted?: boolean };
 type PendingAction = { action: EditorAction; queuedAt: number };
 const VIEW_TYPE = 'liveMarkdown.liveEditor';
@@ -99,6 +99,18 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider, 
           client.resourceRequests.delete(m.requestId);
         } else if (m.type === 'followLink') {
           await this.followLink(document.uri, m.target);
+        } else if (m.type === 'imageSettings') {
+          await vscode.commands.executeCommand('workbench.action.openSettings', '@ext:RobKeys.live-markdown-pane liveMarkdown.allowRemoteImages');
+        } else if (m.type === 'copyText') {
+          const copied = await vscode.env.clipboard.writeText(m.text).then(() => true, () => false);
+          if (!panelDisposed) postToPanelIfAlive(panel, { type: 'clipboardResult', requestId: m.requestId, copied });
+        } else if (m.type === 'pickHeading') {
+          const selected = await vscode.window.showQuickPick(m.headings.map(heading => ({
+            label: `${'  '.repeat(heading.level - 1)}${heading.label || '(Untitled heading)'}`,
+            description: `H${heading.level}`,
+            slug: heading.slug,
+          })), { title: 'Go to Heading', placeHolder: 'Search document headings', matchOnDescription: true });
+          if (selected && !panelDisposed) postToPanelIfAlive(panel, { type: 'navigateHeading', slug: selected.slug });
         } else if (m.type === 'action') {
           actionTail = actionTail.then(async () => {
             if (m.action === 'save') {
@@ -176,7 +188,7 @@ export class MarkdownEditorProvider implements vscode.CustomTextEditorProvider, 
     return [...this.clients].find(client => client.panel === panel)?.document.uri;
   }
 
-  async action(action: 'toggleSource' | 'bold' | 'italic' | 'inlineCode' | 'insertLink' | 'undo' | 'redo' | 'save' | 'openInTextEditor'): Promise<void> {
+  async action(action: EditorAction): Promise<void> {
     const panel = this.activePanel();
     if (!panel) {
       const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;

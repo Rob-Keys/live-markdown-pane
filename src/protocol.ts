@@ -15,10 +15,14 @@ export type WebviewMessage =
   | { type: 'edit'; sessionId: string; operationId: string; baseVersion: number; draftSequence: number; clientRevision?: number; changes: SourceChange[] }
   | { type: 'action'; sessionId: string; action: 'toggleSource' | 'bold' | 'italic' | 'inlineCode' | 'insertLink' | 'undo' | 'redo' | 'save' | 'openInTextEditor' }
   | { type: 'followLink'; sessionId: string; target: string }
+  | { type: 'pickHeading'; sessionId: string; headings: HeadingChoice[] }
+  | { type: 'imageSettings'; sessionId: string }
+  | { type: 'copyText'; sessionId: string; requestId: string; text: string }
   | { type: 'resource'; sessionId: string; requestId: string; src: string }
   | { type: 'cancelResource'; sessionId: string; requestId: string };
 
-export type EditorCommand = 'toggleSource' | 'bold' | 'italic' | 'inlineCode' | 'insertLink' | 'undo' | 'redo' | 'save' | 'openInTextEditor';
+export type EditorCommand = 'toggleSource' | 'bold' | 'italic' | 'inlineCode' | 'insertLink' | 'undo' | 'redo' | 'save' | 'openInTextEditor' | 'goToHeading' | 'copyHeadingLink';
+export type HeadingChoice = { label: string; slug: string; level: number };
 
 export type HostMessage =
   | { type: 'initialize'; sessionId: string; recoveryId: string; text: string; version: number; eol: '\n' | '\r\n'; readonly: boolean; visible: boolean; settings: EditorSettings; customCss?: string; recoveredDraft?: string }
@@ -27,10 +31,11 @@ export type HostMessage =
   | { type: 'external'; text: string; version: number; eol: '\n' | '\r\n'; baseVersion?: number; changes?: SourceChange[] }
   | { type: 'failure'; operationId?: string; message: string; draft: string; version: number }
   | { type: 'resourceResult'; requestId: string; uri?: string; error?: string }
+  | { type: 'clipboardResult'; requestId: string; copied: boolean }
   | { type: 'configuration'; settings: EditorSettings; customCss?: string };
 
 export type StatusMessage = { type: 'status'; message: string };
-export type CommandMessage = { type: 'command'; action: EditorCommand };
+export type CommandMessage = { type: 'command'; action: EditorCommand } | { type: 'navigateHeading'; slug: string };
 
 export type EditorSettings = {
   syntaxVisibility: 'activeLine' | 'activeBlock' | 'always';
@@ -46,6 +51,7 @@ export type EditorSettings = {
   isTrusted: boolean;
   screenReaderMode: boolean;
   lineNumberStart: number;
+  spellcheck?: boolean;
 };
 
 export function isWebviewMessage(value: unknown): value is WebviewMessage {
@@ -62,6 +68,12 @@ export function isWebviewMessage(value: unknown): value is WebviewMessage {
       return typeof message.operationId === 'string' && message.operationId.length <= 128 && Number.isSafeInteger(message.baseVersion) && (message.baseVersion as number) >= 0 && Number.isSafeInteger(message.draftSequence) && (message.draftSequence as number) >= 0 && (message.clientRevision === undefined || Number.isSafeInteger(message.clientRevision) && (message.clientRevision as number) > 0) && isSourceChangeArray(message.changes);
     case 'action': return ['toggleSource', 'bold', 'italic', 'inlineCode', 'insertLink', 'undo', 'redo', 'save', 'openInTextEditor'].includes(String(message.action));
     case 'followLink': return typeof message.target === 'string' && message.target.length <= 8192;
+    case 'pickHeading': return Array.isArray(message.headings) && message.headings.length <= 2000 && message.headings.every(heading =>
+      isRecord(heading) && typeof heading.label === 'string' && heading.label.length <= 512
+      && typeof heading.slug === 'string' && heading.slug.length <= 8192
+      && Number.isInteger(heading.level) && (heading.level as number) >= 1 && (heading.level as number) <= 6);
+    case 'imageSettings': return true;
+    case 'copyText': return typeof message.requestId === 'string' && message.requestId.length <= 128 && typeof message.text === 'string' && message.text.length <= 5 * 1024 * 1024;
     case 'resource': return typeof message.requestId === 'string' && message.requestId.length <= 128 && typeof message.src === 'string' && message.src.length <= 8192;
     case 'cancelResource': return typeof message.requestId === 'string' && message.requestId.length <= 128;
     default: return false;
@@ -98,6 +110,7 @@ export function isHostMessage(value: unknown): value is HostMessage {
       return typeof value.requestId === 'string' && value.requestId.length <= 128
         && (value.uri === undefined || typeof value.uri === 'string' && value.uri.length <= 8192)
         && (value.error === undefined || typeof value.error === 'string' && value.error.length <= 10000);
+    case 'clipboardResult': return typeof value.requestId === 'string' && value.requestId.length <= 128 && typeof value.copied === 'boolean';
     case 'configuration':
       return isEditorSettings(value.settings)
         && (value.customCss === undefined || typeof value.customCss === 'string' && value.customCss.length <= 256 * 1024);
@@ -110,7 +123,8 @@ export function isStatusMessage(value: unknown): value is StatusMessage {
 }
 
 export function isCommandMessage(value: unknown): value is CommandMessage {
-  return isRecord(value) && value.type === 'command' && isEditorCommand(value.action);
+  return isRecord(value) && (value.type === 'command' && isEditorCommand(value.action)
+    || value.type === 'navigateHeading' && typeof value.slug === 'string' && value.slug.length <= 8192);
 }
 
 function isEditorSettings(value: unknown): value is EditorSettings {
@@ -124,11 +138,12 @@ function isEditorSettings(value: unknown): value is EditorSettings {
     && typeof value.showLineNumbers === 'boolean' && typeof value.renderImages === 'boolean'
     && typeof value.renderTables === 'boolean' && typeof value.allowRemoteImages === 'boolean'
     && typeof value.isTrusted === 'boolean' && typeof value.screenReaderMode === 'boolean'
+    && (value.spellcheck === undefined || typeof value.spellcheck === 'boolean')
     && Number.isSafeInteger(value.lineNumberStart) && (value.lineNumberStart as number) >= 1;
 }
 
 function isEditorCommand(value: unknown): value is EditorCommand {
-  return ['toggleSource', 'bold', 'italic', 'inlineCode', 'insertLink', 'undo', 'redo', 'save', 'openInTextEditor'].includes(String(value));
+  return ['toggleSource', 'bold', 'italic', 'inlineCode', 'insertLink', 'undo', 'redo', 'save', 'openInTextEditor', 'goToHeading', 'copyHeadingLink'].includes(String(value));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

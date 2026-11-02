@@ -3,7 +3,8 @@ import { syntaxTree } from '@codemirror/language';
 import { EditorState, Range, StateEffect, StateField, Transaction } from '@codemirror/state';
 import { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { EditorSettings, isPermittedImageSource } from '../protocol';
-import { ImageWidget, ListMarker, TableAlignment, TableTextRun, TableWidget, TaskCheckbox, TextWidget } from './widgets';
+import { CodeBlockControls, ImageWidget, ListMarker, TableAlignment, TableTextRun, TableWidget, TaskCheckbox, TextWidget } from './widgets';
+import { fencedCodeText } from './codeBlocks';
 import { changesMayAffectReferenceDefinitions, normalizeLinkDestination, normalizeReferenceLabel, referenceDefinitions, unescapeMarkdown } from './references';
 import { shouldReduceRendering } from './documentMetrics';
 import { effectiveSyntaxVisibility, shouldRenderTableWidget } from './renderingVisibility';
@@ -83,7 +84,7 @@ export function changesMayAffectTableSyntax(transaction: Transaction): boolean {
   return mayAffect;
 }
 
-export function liveRendering(settings: () => EditorSettings, sourceMode: () => boolean, requestResource: (src: string, signal?: AbortSignal) => Promise<string | undefined>, enterTable: (position: number) => void, onFailure: (error?: unknown) => void = () => {}, editable: () => boolean = () => true, preserveViewport: (update: () => void) => void = update => update(), composing: () => boolean = () => false, followLink: (target: string) => void = () => {}) {
+export function liveRendering(settings: () => EditorSettings, sourceMode: () => boolean, requestResource: (src: string, signal?: AbortSignal) => Promise<string | undefined>, enterTable: (position: number) => void, onFailure: (error?: unknown) => void = () => {}, editable: () => boolean = () => true, preserveViewport: (update: () => void) => void = update => update(), composing: () => boolean = () => false, followLink: (target: string) => void = () => {}, copyText: (text: string) => Promise<boolean> = async text => { try { await navigator.clipboard.writeText(text); return true; } catch { return false; } }, openImageSettings?: () => void) {
   const failedLayers = new Set<string>();
   const reportFailure = (layer: string, error?: unknown) => {
     if (error !== undefined) {
@@ -183,6 +184,7 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
       let table = tableNodeAt(state, node.from);
       if (!table) continue;
       const starts: number[] = [];
+      const cellStarts: number[][] = [];
     const rows: TableTextRun[][][] = [];
       let alignments: TableAlignment[] = [];
       for (let row = table.firstChild; row; row = row.nextSibling) {
@@ -196,13 +198,18 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
         }
         if (row.name !== 'TableHeader' && row.name !== 'TableRow') continue;
         const cells: TableTextRun[][] = [];
+        const positions: number[] = [];
         for (let cell = row.firstChild; cell; cell = cell.nextSibling) {
-          if (cell.name === 'TableCell') cells.push(tableCellRuns(state, cell, referenceTargetsForTables(state)));
+          if (cell.name === 'TableCell') {
+            cells.push(tableCellRuns(state, cell, referenceTargetsForTables(state)));
+            positions.push(cell.from);
+          }
         }
         rows.push(cells);
+        cellStarts.push(positions);
         starts.push(state.doc.lineAt(row.from).from);
       }
-      values.push(Decoration.replace({ widget: new TableWidget(table.from, table.to, rows, starts, alignments, enterTable, followLink), block: true }).range(table.from, table.to));
+      values.push(Decoration.replace({ widget: new TableWidget(table.from, table.to, rows, starts, alignments, enterTable, followLink, cellStarts), block: true }).range(table.from, table.to));
     }
     return Decoration.set(values, true);
   }
@@ -320,11 +327,13 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
       };
       const selected = (from: number, to: number) => view.state.selection.ranges.some(range => range.empty ? range.head >= from && range.head <= to : range.from < to && range.to > from);
       const visited = new Set<string>();
+      const controlledFences = new Set<number>();
       const decorate = (node: SyntaxNodeRef) => {
         const id = `${node.name}:${node.from}:${node.to}`;
         if (visited.has(id)) return;
         visited.add(id);
         const name = node.name;
+        if (name === 'CodeMark' && controlledFences.has(node.node.parent?.from ?? -1)) return false;
         const isLinkTarget = name === 'URL' || name === 'LinkLabel';
         let linkContext = isLinkTarget ? tree.resolveInner(node.from) : undefined;
         while (linkContext && !['Link', 'Image', 'Autolink'].includes(linkContext.name) && linkContext.parent) linkContext = linkContext.parent;
@@ -376,9 +385,13 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
           const image = imageNode.name === 'Image' ? readImage(view.state, imageNode) : undefined;
           const source = image?.source ?? (image?.reference !== undefined ? references().get(normalizeReferenceLabel(image.reference || image.alt)) : undefined);
           const remoteAllowed = isPermittedImageSource(source, settings().isTrusted, settings().allowRemoteImages);
+          const remote = /^https:/i.test(source ?? '');
+          const blockedReason = remote && !settings().isTrusted ? 'Remote images disabled in Restricted Mode'
+            : remote && !settings().allowRemoteImages ? 'Remote images disabled'
+            : source && !remoteAllowed ? 'Image blocked: only local files and permitted HTTPS images are supported' : '';
           if (settings().renderImages && !simplifyWidgets && !reveal && image && visibleImageWidgets < maxVisibleImageWidgets) {
             visibleImageWidgets++;
-            values.push(Decoration.replace({ widget: new ImageWidget(node.from, node.to, image.alt, source ?? '', remoteAllowed, requestResource, position => { view.dispatch({ selection: { anchor: position } }); view.focus(); }, preserveViewport) }).range(node.from, node.to));
+            values.push(Decoration.replace({ widget: new ImageWidget(node.from, node.to, image.alt, source ?? '', remoteAllowed, requestResource, position => { view.dispatch({ selection: { anchor: position } }); view.focus(); }, preserveViewport, blockedReason, remote && !remoteAllowed ? openImageSettings : undefined) }).range(node.from, node.to));
           } else {
             values.push(Decoration.mark({ class: 'lm-image-source' }).range(node.from, node.to));
           }
@@ -394,7 +407,21 @@ export function liveRendering(settings: () => EditorSettings, sourceMode: () => 
           // plugins may not replace ranges containing line breaks.
           return false;
         } else if (name === 'FencedCode' || name === 'CodeBlock') {
-          addVisibleLines('lm-code-line', fromLine.number, toLine.number);
+          addVisibleLines('lm-code-line', fromLine.number, toLine.number, { spellcheck: 'false' });
+          values.push(Decoration.line({ class: 'lm-code-first' }).range(fromLine.from));
+          values.push(Decoration.line({ class: 'lm-code-last' }).range(toLine.from));
+          if (name === 'FencedCode' && !simplifyWidgets && mode !== 'always' && !inBlock && !selected(node.from, node.to)) {
+            const state = view.state;
+            const fenced = node.node;
+            const language = fenced.getChild('CodeInfo');
+            // Extract code only when Copy is activated, keeping large code
+            // blocks off the ordinary typing and cursor-movement paths.
+            const controls = new CodeBlockControls(language ? state.sliceDoc(language.from, language.to) : '', state.doc, () => fencedCodeText(state, fenced), copyText, node.from, node.to, enterTable);
+            values.push(Decoration.replace({ widget: controls }).range(node.from, fromLine.to));
+            const closing = node.node.lastChild;
+            if (closing?.name === 'CodeMark' && closing.from > fromLine.to) values.push(Decoration.replace({}).range(closing.from, closing.to));
+            controlledFences.add(node.from);
+          }
         } else if (name === 'Blockquote') {
           addVisibleLines('lm-blockquote', fromLine.number, toLine.number);
         } else if (name === 'ListMark' && !reveal) {

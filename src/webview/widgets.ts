@@ -1,4 +1,5 @@
 import { WidgetType } from '@codemirror/view';
+import { Text } from '@codemirror/state';
 
 export class TaskCheckbox extends WidgetType {
   constructor(readonly from: number, readonly to: number, readonly checked: boolean, readonly description: string, readonly isEditable: boolean, private readonly dispatch: (from: number, to: number, value: string) => void, private readonly enterSource: (position: number) => void) { super(); }
@@ -47,6 +48,38 @@ export class TextWidget extends WidgetType {
   ignoreEvent(): boolean { return false; }
 }
 
+export class CodeBlockControls extends WidgetType {
+  constructor(readonly language: string, readonly document: Text, private readonly code: () => string, private readonly copy: (text: string) => Promise<boolean>, readonly from: number, readonly to: number, private readonly enter: (position: number) => void) { super(); }
+  eq(other: CodeBlockControls): boolean { return this.language === other.language && this.document === other.document && this.from === other.from && this.to === other.to; }
+  toDOM(): HTMLElement {
+    const wrapper = document.createElement('span');
+    wrapper.className = 'lm-code-controls';
+    wrapper.dataset.lmPosition = String(this.from);
+    wrapper.spellcheck = false;
+    const label = document.createElement('span');
+    label.textContent = this.language || 'Code';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Copy code';
+    button.addEventListener('keydown', event => {
+      if (event.key === 'Tab' || event.key === 'Escape') {
+        event.preventDefault();
+        this.enter(event.key === 'Tab' && !event.shiftKey ? this.to : this.from);
+      }
+    });
+    button.addEventListener('click', async () => {
+      const copied = await this.copy(this.code());
+      if (button.isConnected) {
+        button.textContent = copied ? 'Copied' : 'Retry copy';
+        button.setAttribute('aria-label', copied ? 'Code copied. Copy again' : 'Copy failed. Retry copying code');
+      }
+    });
+    wrapper.append(label, button);
+    return wrapper;
+  }
+  ignoreEvent(): boolean { return true; }
+}
+
 export type TableTextRun = { text: string; marks: Array<'strong' | 'emphasis' | 'code' | 'strike' | 'link'>; linkTarget?: string };
 export type TableAlignment = 'left' | 'center' | 'right' | undefined;
 export type TableLinkKeyboardIntent = 'edit' | 'follow' | undefined;
@@ -57,18 +90,19 @@ export function tableLinkKeyboardIntent(event: Pick<KeyboardEvent, 'key' | 'ctrl
 }
 
 export class TableWidget extends WidgetType {
-  constructor(readonly from: number, readonly to: number, readonly rows: TableTextRun[][][], readonly starts: number[], readonly alignments: TableAlignment[], private readonly enter: (position: number) => void, private readonly followLink: (target: string) => void = () => {}) { super(); }
-  eq(other: TableWidget): boolean { return other.from === this.from && other.to === this.to && JSON.stringify(other.rows) === JSON.stringify(this.rows) && JSON.stringify(other.starts) === JSON.stringify(this.starts) && JSON.stringify(other.alignments) === JSON.stringify(this.alignments); }
+  constructor(readonly from: number, readonly to: number, readonly rows: TableTextRun[][][], readonly starts: number[], readonly alignments: TableAlignment[], private readonly enter: (position: number) => void, private readonly followLink: (target: string) => void = () => {}, readonly cellStarts: number[][] = []) { super(); }
+  eq(other: TableWidget): boolean { return other.from === this.from && other.to === this.to && JSON.stringify(other.rows) === JSON.stringify(this.rows) && JSON.stringify(other.starts) === JSON.stringify(this.starts) && JSON.stringify(other.alignments) === JSON.stringify(this.alignments) && JSON.stringify(other.cellStarts) === JSON.stringify(this.cellStarts); }
   toDOM(): HTMLElement {
     const wrapper = document.createElement('div');
     wrapper.className = 'lm-table-widget';
     wrapper.dataset.lmPosition = String(this.from);
     wrapper.setAttribute('role', 'group');
-    wrapper.setAttribute('aria-label', 'Rendered Markdown table. Press Enter on a cell to edit its source row.');
+    wrapper.setAttribute('aria-label', 'Rendered Markdown table. Press Enter or F2 on a cell to edit it.');
     const table = document.createElement('table');
     this.rows.forEach((row, rowIndex) => {
       const tr = document.createElement('tr');
       row.forEach((cell, columnIndex) => {
+        const enterCell = () => this.enter(this.cellStarts[rowIndex]?.[columnIndex] ?? this.starts[rowIndex] ?? this.from);
         const cellElement = document.createElement(rowIndex === 0 ? 'th' : 'td');
         if (rowIndex === 0) cellElement.setAttribute('scope', 'col');
         const alignment = this.alignments[columnIndex];
@@ -89,7 +123,7 @@ export class TableWidget extends WidgetType {
                 event.preventDefault();
                 event.stopPropagation();
                 if ((mouseEvent.ctrlKey || mouseEvent.metaKey) && run.linkTarget) this.followLink(run.linkTarget);
-                else this.enter(this.starts[rowIndex] ?? this.from);
+                else enterCell();
               });
               wrapper.addEventListener('keydown', event => {
                 const keyboardEvent = event as KeyboardEvent;
@@ -100,7 +134,7 @@ export class TableWidget extends WidgetType {
                 if (intent === 'follow' && run.linkTarget) {
                   this.followLink(run.linkTarget);
                 } else {
-                  this.enter(this.starts[rowIndex] ?? this.from);
+                  enterCell();
                 }
               });
             }
@@ -110,9 +144,9 @@ export class TableWidget extends WidgetType {
           cellElement.append(content);
         }
         cellElement.tabIndex = 0;
-        cellElement.addEventListener('click', () => this.enter(this.starts[rowIndex] ?? this.from));
+        cellElement.addEventListener('click', enterCell);
         cellElement.addEventListener('keydown', event => {
-          if (event.key === 'Enter' || event.key === 'F2') { event.preventDefault(); this.enter(this.starts[rowIndex] ?? this.from); }
+          if (event.key === 'Enter' || event.key === 'F2') { event.preventDefault(); enterCell(); }
           if (event.key === 'Escape') { event.preventDefault(); this.enter(this.to); }
           if (event.key === 'Tab') {
             event.preventDefault();
@@ -132,23 +166,34 @@ export class TableWidget extends WidgetType {
     wrapper.append(scroller);
     return wrapper;
   }
-  ignoreEvent(): boolean { return false; }
+  // Let the cell's click choose the source position. CodeMirror's generic
+  // mouse-down mapping would reveal and remove the table before click arrives.
+  ignoreEvent(event: Event): boolean { return event.type === 'mousedown' || event.type === 'pointerdown'; }
 }
 
 export class ImageWidget extends WidgetType {
   private requests = new WeakMap<HTMLElement, AbortController>();
-  constructor(readonly from: number, readonly to: number, readonly alt: string, readonly src: string, readonly canLoad: boolean, private readonly request: (src: string, signal?: AbortSignal) => Promise<string | undefined>, private readonly enter: (position: number) => void, private readonly preserveViewport: (update: () => void) => void) { super(); }
-  eq(other: ImageWidget): boolean { return other.from === this.from && other.to === this.to && other.alt === this.alt && other.src === this.src && other.canLoad === this.canLoad; }
+  constructor(readonly from: number, readonly to: number, readonly alt: string, readonly src: string, readonly canLoad: boolean, private readonly request: (src: string, signal?: AbortSignal) => Promise<string | undefined>, private readonly enter: (position: number) => void, private readonly preserveViewport: (update: () => void) => void, readonly blockedReason = '', private readonly openSettings?: () => void) { super(); }
+  eq(other: ImageWidget): boolean { return other.from === this.from && other.to === this.to && other.alt === this.alt && other.src === this.src && other.canLoad === this.canLoad && other.blockedReason === this.blockedReason && !!other.openSettings === !!this.openSettings; }
   toDOM(): HTMLElement {
     const wrapper = document.createElement('span');
     wrapper.className = 'lm-image-widget';
     wrapper.dataset.lmPosition = String(this.from);
     wrapper.tabIndex = 0;
-    wrapper.setAttribute('role', 'button');
+    wrapper.setAttribute('role', this.openSettings ? 'group' : 'button');
     wrapper.setAttribute('aria-label', `Edit Markdown image source: ${this.alt || this.src || 'unavailable image'}`);
     const fallback = document.createElement('span');
-    fallback.textContent = this.alt || (this.src ? `Image: ${this.src}` : 'Unavailable image');
+    const description = this.alt || this.src || 'Image';
+    fallback.textContent = `${description} — ${this.blockedReason || (this.canLoad && this.src ? 'Loading image…' : 'Image unavailable')}`;
     wrapper.append(fallback);
+    if (this.openSettings) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Image settings';
+      button.addEventListener('click', event => { event.stopPropagation(); this.openSettings?.(); });
+      button.addEventListener('keydown', event => event.stopPropagation());
+      wrapper.append(' ', button);
+    }
     wrapper.addEventListener('click', () => this.enter(this.from));
     wrapper.addEventListener('keydown', event => {
       if (event.key === 'Enter' || event.key === 'F2') { event.preventDefault(); this.enter(this.from); }
@@ -157,13 +202,19 @@ export class ImageWidget extends WidgetType {
     if (!this.canLoad || !this.src) return wrapper;
     const controller = new AbortController();
     this.requests.set(wrapper, controller);
+    const unavailable = () => {
+      if (controller.signal.aborted || !wrapper.isConnected) return;
+      fallback.textContent = `${description} — Image unavailable`;
+      this.preserveViewport(() => wrapper.replaceChildren(fallback));
+    };
     void this.request(this.src, controller.signal).then(uri => {
       // A request that began while visible may resolve after the tab is hidden.
       // Keep its result on the retained widget so it is ready when shown again.
-      if (!uri || !wrapper.isConnected) return;
+      if (!wrapper.isConnected || controller.signal.aborted) return;
+      if (!uri) return unavailable();
       const image = document.createElement('img');
       image.alt = this.alt;
-      image.addEventListener('error', () => image.replaceWith(fallback));
+      image.addEventListener('error', unavailable, { once: true });
       let shown = false;
       const showImage = () => {
         if (shown || !wrapper.isConnected) return;
@@ -173,12 +224,12 @@ export class ImageWidget extends WidgetType {
       image.addEventListener('load', showImage, { once: true });
       image.src = uri;
       if (image.complete && image.naturalWidth > 0) showImage();
-    });
+    }).catch(unavailable);
     return wrapper;
   }
   destroy(dom: HTMLElement): void {
     this.requests.get(dom)?.abort();
     this.requests.delete(dom);
   }
-  ignoreEvent(): boolean { return false; }
+  ignoreEvent(event: Event): boolean { return event.target instanceof Element && !!event.target.closest('button'); }
 }

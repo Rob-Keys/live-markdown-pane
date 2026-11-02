@@ -72,7 +72,8 @@
       },
       {
         "command": "liveMarkdown.toggleSource",
-        "title": "Live Markdown: Toggle Source Mode"
+        "title": "Live Markdown: Toggle Source Mode",
+        "icon": "$(code)"
       },
       {
         "command": "liveMarkdown.openInTextEditor",
@@ -80,7 +81,8 @@
       },
       {
         "command": "liveMarkdown.chooseReadingPreset",
-        "title": "Live Markdown: Choose Reading Preset"
+        "title": "Live Markdown: Choose Reading Preset",
+        "icon": "$(text-size)"
       },
       {
         "command": "liveMarkdown.openSettings",
@@ -89,6 +91,15 @@
       {
         "command": "liveMarkdown.resetAppearance",
         "title": "Live Markdown: Reset Appearance"
+      },
+      {
+        "command": "liveMarkdown.goToHeading",
+        "title": "Live Markdown: Go to Heading",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "liveMarkdown.copyHeadingLink",
+        "title": "Live Markdown: Copy Heading Link"
       },
       {
         "command": "liveMarkdown.bold",
@@ -121,6 +132,16 @@
         "title": "Live Markdown: Redo"
       }
     ],
+    "menus": {
+      "editor/title": [
+        { "command": "liveMarkdown.goToHeading", "when": "activeCustomEditorId == liveMarkdown.liveEditor", "group": "navigation@1" },
+        { "command": "liveMarkdown.toggleSource", "when": "activeCustomEditorId == liveMarkdown.liveEditor", "group": "navigation@2" },
+        { "command": "liveMarkdown.chooseReadingPreset", "when": "activeCustomEditorId == liveMarkdown.liveEditor", "group": "navigation@3" },
+        { "command": "liveMarkdown.copyHeadingLink", "when": "activeCustomEditorId == liveMarkdown.liveEditor", "group": "1_liveMarkdown@1" },
+        { "command": "liveMarkdown.openSettings", "when": "activeCustomEditorId == liveMarkdown.liveEditor", "group": "1_liveMarkdown@2" },
+        { "command": "liveMarkdown.openInTextEditor", "when": "activeCustomEditorId == liveMarkdown.liveEditor", "group": "1_liveMarkdown@3" }
+      ]
+    },
     "keybindings": [
       {
         "command": "liveMarkdown.bold",
@@ -237,6 +258,12 @@
           "scope": "resource",
           "default": false,
           "description": "Show source line numbers."
+        },
+        "liveMarkdown.spellcheck": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "Enable browser spellcheck for prose, excluding code and link destinations. Available dictionaries depend on VS Code and your operating system."
         },
         "liveMarkdown.lineNumberStart": {
           "type": "integer",

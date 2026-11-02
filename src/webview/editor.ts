@@ -12,6 +12,8 @@ import { documentByteSize, shouldOpenInSourceMode, shouldReduceRendering, should
 import { linkTargetAt } from './references';
 import { markdownBackspaceEdit, markdownEnterEdit } from './listEditing';
 import { renderingWhenVisible } from './renderingVisibility';
+import { documentHeadings } from './headings';
+import { proseSpellcheck } from './spellcheck';
 import { changeSetToSourceChanges, changesOverlap, composeChangeSets, diffChangeSet, sourceChangesToSet } from '../rebase';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void; getState(): unknown };
@@ -31,6 +33,7 @@ editorRoot.append(status);
 const sourceModeCompartment = new Compartment();
 const markdownLanguageCompartment = new Compartment();
 const lineNumberCompartment = new Compartment();
+const spellcheckCompartment = new Compartment();
 let settings: EditorSettings = {
   syntaxVisibility: 'activeLine', readingPreset: 'default', fontFamily: 'inherit', fontSize: null, lineHeight: null,
   contentWidth: null, showLineNumbers: false, renderImages: true, renderTables: true, allowRemoteImages: false,
@@ -56,6 +59,7 @@ let conflict = false;
 let customStyle: HTMLStyleElement | undefined;
 let appearanceStyle: HTMLStyleElement | undefined;
 let resourceWaiters = new Map<string, (uri?: string, error?: string) => void>();
+const clipboardWaiters = new Map<string, (copied: boolean) => void>();
 
 const excludedDefaultKeys = defaultKeymap.filter(binding => !['Mod-z', 'Mod-y', 'Ctrl-y', 'Mod-Shift-z'].includes(binding.key ?? ''));
 const readOnlyCompartment = new Compartment();
@@ -90,11 +94,22 @@ function makeRendering() {
     view?.dispatch({ selection: { anchor: position } });
     view?.focus();
   }, error => {
-    if (error) showStatus(renderingFailureMessage);
+    if (error) showStatus(renderingFailureMessage, 'error');
     else if (status.textContent === renderingFailureMessage) showStatus(largeDocumentSource ? 'Large document opened in source mode. You can keep editing and saving Markdown normally.' : '');
-  }, () => !documentReadonly && !conflict, preserveCaretViewportWhile, () => compositionGate.isActive(), target => {
-    vscode.postMessage({ type: 'followLink', sessionId, target });
+  }, () => !documentReadonly && !conflict, preserveCaretViewportWhile, () => compositionGate.isActive(), followDestination, copyText,
+  () => vscode.postMessage({ type: 'imageSettings', sessionId }));
+}
+
+async function copyText(text: string): Promise<boolean> {
+  const requestId = crypto.randomUUID();
+  const copied = await new Promise<boolean>(resolve => {
+    const timeout = window.setTimeout(() => { clipboardWaiters.delete(requestId); resolve(false); }, 10000);
+    clipboardWaiters.set(requestId, result => { window.clearTimeout(timeout); clipboardWaiters.delete(requestId); resolve(result); });
+    vscode.postMessage({ type: 'copyText', sessionId, requestId, text });
   });
+  if (!copied) showStatus('Clipboard access failed. Select the text and copy it manually.', 'error');
+  else if (status.textContent === 'Clipboard access failed. Select the text and copy it manually.') showStatus();
+  return copied;
 }
 
 function preserveViewportWhile(update: () => void): void {
@@ -138,14 +153,21 @@ function reconfigureRenderingPreservingViewport(configurationChanged = false): v
     const effects = [
       sourceModeCompartment.reconfigure(makeRendering()),
       markdownLanguageCompartment.reconfigure(shouldUseMarkdownLanguage(largeDocumentSource, sourceMode) ? markdown({ extensions: GFM }) : []),
+      spellcheckCompartment.reconfigure(proseSpellcheck(settings.spellcheck === true && shouldUseMarkdownLanguage(largeDocumentSource, sourceMode))),
     ];
-    if (refreshConfiguration) effects.push(lineNumberCompartment.reconfigure(settings.showLineNumbers ? lineNumbers({ formatNumber: n => String(n + settings.lineNumberStart - 1) }) : []));
+    if (refreshConfiguration) effects.push(
+      lineNumberCompartment.reconfigure(settings.showLineNumbers ? lineNumbers({ formatNumber: n => String(n + settings.lineNumberStart - 1) }) : []),
+    );
     view?.dispatch({ effects });
     if (refreshConfiguration) updateAppearance();
   });
 }
 
-function showStatus(message = ''): void { status.textContent = message; status.hidden = !message; }
+function showStatus(message = '', severity: 'info' | 'error' = 'info'): void {
+  status.textContent = message;
+  status.dataset.severity = severity;
+  status.hidden = !message;
+}
 function updateAppearance(): void {
   if (!view) return;
   const presets = {
@@ -232,8 +254,8 @@ function sendNext(): void {
 
 function focusRenderedWidget(editor: EditorView, direction: 1 | -1): boolean {
   const candidates: Array<{ position: number; target: HTMLElement }> = [];
-  for (const widget of Array.from(editor.dom.querySelectorAll<HTMLElement>('.lm-task-widget, .lm-table-widget, .lm-image-widget'))) {
-    const target = widget.querySelector<HTMLElement>('input, th, td') ?? widget;
+  for (const widget of Array.from(editor.dom.querySelectorAll<HTMLElement>('.lm-task-widget, .lm-table-widget, .lm-image-widget, .lm-code-controls'))) {
+    const target = widget.querySelector<HTMLElement>('input, th, td, button') ?? widget;
     if (target instanceof HTMLInputElement && target.disabled) continue;
     const position = Number(widget.dataset.lmPosition);
     if (Number.isInteger(position)) candidates.push({ position, target });
@@ -257,10 +279,10 @@ function focusRenderedWidget(editor: EditorView, direction: 1 | -1): boolean {
   let attempts = 0;
   const focusAfterScroll = () => {
     if (view !== editor || !editor.dom.isConnected) return;
-    const widget = Array.from(editor.dom.querySelectorAll<HTMLElement>('.lm-task-widget, .lm-table-widget, .lm-image-widget'))
+    const widget = Array.from(editor.dom.querySelectorAll<HTMLElement>('.lm-task-widget, .lm-table-widget, .lm-image-widget, .lm-code-controls'))
       .find(item => Number(item.dataset.lmPosition) === nextPosition);
     if (widget) {
-      const target = widget.querySelector<HTMLElement>('input, th, td') ?? widget;
+      const target = widget.querySelector<HTMLElement>('input, th, td, button') ?? widget;
       if (!(target instanceof HTMLInputElement) || !target.disabled) {
         target.focus();
         return;
@@ -288,6 +310,7 @@ function nextWidgetPosition(editor: EditorView, direction: 1 | -1, cursor: numbe
       if (/^\[[ xX]\]$/.test(raw)) position = node.from;
     } else if (node.name === 'Table' && settings.renderTables && !simplifyWidgets) position = node.from;
     else if (node.name === 'Image' && settings.renderImages && !simplifyWidgets) position = node.from;
+    else if (node.name === 'FencedCode') position = node.from;
     if (position !== undefined) {
       const containsCursor = state.selection.ranges.some(range => range.empty
         ? range.head >= node.from && range.head <= node.to
@@ -309,9 +332,10 @@ function createEditor(text: string, readOnly: boolean): void {
     EditorView.cspNonce.of(cspNonce),
     sourceModeCompartment.of(renderingWhenVisible(renderingVisible, makeRendering)),
     lineNumberCompartment.of(settings.showLineNumbers ? lineNumbers({ formatNumber: number => String(number + settings.lineNumberStart - 1) }) : []),
+    spellcheckCompartment.of(proseSpellcheck(settings.spellcheck === true && shouldUseMarkdownLanguage(largeDocumentSource, sourceMode))),
     readOnlyCompartment.of(EditorView.editable.of(!readOnly)),
     EditorView.lineWrapping,
-    EditorView.contentAttributes.of({ 'aria-label': 'Live Markdown document', spellcheck: 'false' }),
+    EditorView.contentAttributes.of({ 'aria-label': 'Live Markdown document' }),
     EditorView.updateListener.of(update => {
       if (update.selectionSet || update.viewportChanged) persistState();
       if (!update.docChanged || !sessionReady || conflict || update.transactions.some(transaction => transaction.annotation(externalUpdate))) return;
@@ -375,33 +399,39 @@ function followMarkdownLink(event: MouseEvent, editor: EditorView): boolean {
   if (position === null) return false;
   const target = linkTargetAt(editor.state, position);
   if (!target) return false;
-  if (target.startsWith('#')) {
-    let slug: string;
-    try { slug = decodeURIComponent(target.slice(1)); } catch { return false; }
-    const headings: Array<{ from: number; slug: string }> = [];
-    const usedSlugs = new Set<string>();
-    syntaxTree(editor.state).iterate({ enter: heading => {
-      if (!/^(ATXHeading[1-6]|SetextHeading[12])$/.test(heading.name)) return;
-      const text = editor.state.sliceDoc(heading.from, heading.to).split('\n')[0].replace(/^#+\s*/, '');
-      const base = slugHeading(text);
-      let slug = base;
-      for (let suffix = 1; usedSlugs.has(slug); suffix++) slug = `${base}-${suffix}`;
-      usedSlugs.add(slug);
-      headings.push({ from: heading.from, slug });
-    }});
-    const wanted = slugHeading(slug);
-    const found = headings.find(heading => heading.slug === wanted);
-    if (found) { editor.dispatch({ selection: EditorSelection.cursor(found.from) }); editor.focus(); }
-    event.preventDefault();
-    return true;
-  }
-  vscode.postMessage({ type: 'followLink', sessionId, target });
+  followDestination(target);
   event.preventDefault();
   return true;
 }
 
-function slugHeading(value: string): string {
-  return value.toLowerCase().replace(/[*_`~]/g, '').trim().replace(/[^\p{L}\p{N}\s-]/gu, '').replace(/\s+/g, '-');
+function followDestination(target: string): void {
+  if (target.startsWith('#')) {
+    let slug: string;
+    try { slug = decodeURIComponent(target.slice(1)); } catch { return; }
+    navigateHeading(slug);
+  } else {
+    vscode.postMessage({ type: 'followLink', sessionId, target });
+  }
+}
+
+function availableHeadings() {
+  if (!view) return undefined;
+  if (!shouldUseMarkdownLanguage(largeDocumentSource, sourceMode)) {
+    showStatus('Heading navigation is unavailable while this large document is in source mode.');
+    return undefined;
+  }
+  const headings = documentHeadings(view.state);
+  if (!headings) showStatus('Headings are still being parsed. Try heading navigation again in a moment.');
+  return headings;
+}
+
+function navigateHeading(slug: string): void {
+  const headings = availableHeadings();
+  if (!view || !headings) return;
+  const found = headings.find(heading => heading.slug === slug);
+  if (!found) { showStatus('That heading is no longer in this document.'); return; }
+  view.dispatch({ selection: EditorSelection.cursor(found.from), effects: EditorView.scrollIntoView(found.from, { y: 'start', yMargin: 32 }) });
+  view.focus();
 }
 
 function requestHistory(action: 'undo' | 'redo'): void {
@@ -595,6 +625,25 @@ let committedText = '';
 
 function format(action: string): void {
   if (!view || conflict) return;
+  if (action === 'goToHeading' || action === 'copyHeadingLink') {
+    const headings = availableHeadings();
+    if (!headings) return;
+    if (!headings.length) { showStatus('This document has no headings.'); return; }
+    if (action === 'goToHeading') {
+      if (headings.length > 2000) showStatus('Showing the first 2,000 headings.');
+      vscode.postMessage({ type: 'pickHeading', sessionId, headings: headings.slice(0, 2000).map(({ label, slug, level }) => ({ label: label.slice(0, 512), slug, level })) });
+    } else {
+      const position = view.state.selection.main.head;
+      const heading = [...headings].reverse().find(item => item.from <= position) ?? headings[0];
+      void copyText(`#${encodeURIComponent(heading.slug)}`).then(copied => {
+        if (copied) {
+          showStatus('Heading link copied.');
+          window.setTimeout(() => { if (status.textContent === 'Heading link copied.') showStatus(); }, 2500);
+        }
+      });
+    }
+    return;
+  }
   if (action === 'toggleSource') {
     if (inFlight || queue.length) pendingSourceToggles = 1 - pendingSourceToggles;
     else toggleSourceMode();
@@ -706,11 +755,17 @@ function handleMessage(message: HostMessage | StatusMessage | CommandMessage): v
       if (resolve) { resourceWaiters.delete(message.requestId); resolve(message.uri, message.error); }
       break;
     }
+    case 'clipboardResult':
+      clipboardWaiters.get(message.requestId)?.(message.copied);
+      break;
     case 'status':
       showStatus(message.message);
       break;
     case 'command':
       format(message.action);
+      break;
+    case 'navigateHeading':
+      navigateHeading(message.slug);
       break;
     case 'visibility':
       panelVisible = message.visible;

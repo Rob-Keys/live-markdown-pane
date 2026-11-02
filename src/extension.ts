@@ -28,6 +28,8 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(vscode.commands.registerCommand(command, () => provider.action(action)));
   };
   registerAction('liveMarkdown.toggleSource', 'toggleSource');
+  registerAction('liveMarkdown.goToHeading', 'goToHeading');
+  registerAction('liveMarkdown.copyHeadingLink', 'copyHeadingLink');
   registerAction('liveMarkdown.bold', 'bold');
   registerAction('liveMarkdown.italic', 'italic');
   registerAction('liveMarkdown.inlineCode', 'inlineCode');

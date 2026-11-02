@@ -54,6 +54,7 @@ export function readSettings(uri: vscode.Uri): EditorSettings {
     lineHeight: boundedNumber(config.get<unknown>('lineHeight', null), 1.2, 2.2),
     contentWidth,
     showLineNumbers: booleanSetting(config.get<unknown>('showLineNumbers', false), false),
+    spellcheck: booleanSetting(config.get<unknown>('spellcheck', false), false),
     renderImages: booleanSetting(config.get<unknown>('renderImages', true), true),
     renderTables: booleanSetting(config.get<unknown>('renderTables', true), true),
     allowRemoteImages: booleanSetting(config.get<unknown>('allowRemoteImages', false), false),

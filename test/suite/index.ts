@@ -21,6 +21,7 @@ import { documentByteSize, documentBytes, REDUCED_RENDERING_BYTES, shouldOpenInS
 import { effectiveSyntaxVisibility, renderingWhenVisible, shouldRenderTableWidget } from '../../src/webview/renderingVisibility';
 import { isHostMessage, isPermittedImageSource, isWebviewMessage } from '../../src/protocol';
 import { isUriWithin } from '../../src/resources';
+import { runUxCases } from './ux';
 
 const VIEW_TYPE = 'liveMarkdown.liveEditor';
 
@@ -60,6 +61,8 @@ export async function run(): Promise<void> {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   }
+
+  await runUxCases(runCase);
 
   await runCase('presentation changes wait for IME composition and coalesce', async () => {
       const gate = new CompositionGate();

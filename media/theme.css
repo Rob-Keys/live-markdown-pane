@@ -36,6 +36,19 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
 .lm-link { color: var(--lm-link); font-weight: 550; text-decoration: underline; text-decoration-color: var(--lm-link); text-decoration-thickness: .08em; text-underline-offset: .14em; background: color-mix(in srgb, var(--lm-link) 8%, transparent); border-radius: 2px; }
 .lm-link:hover { text-decoration-thickness: .13em; background: color-mix(in srgb, var(--lm-link) 16%, transparent); }
 .lm-code-line { background: var(--lm-code-bg); font-family: var(--vscode-editor-font-family, monospace); }
+.cm-editor .cm-line.lm-code-line { padding-inline: .8em; }
+.cm-editor .cm-line.lm-code-first { border-radius: 6px 6px 0 0; padding-top: .45em; }
+.cm-editor .cm-line.lm-code-last { border-radius: 0 0 6px 6px; padding-bottom: .45em; }
+.cm-editor .cm-line.lm-code-first.lm-code-last { border-radius: 6px; }
+.lm-code-controls { display: inline-flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 1lh; vertical-align: top; }
+.lm-code-controls > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--lm-muted); font: 12px/1.4 var(--vscode-font-family, sans-serif); }
+.lm-code-controls button, .lm-image-widget button {
+  flex-shrink: 0; border: 1px solid var(--lm-border); border-radius: 3px; padding: 2px 7px;
+  color: var(--vscode-button-secondaryForeground, var(--lm-fg)); background: var(--vscode-button-secondaryBackground, var(--lm-bg));
+  font: 12px/1.4 var(--vscode-font-family, sans-serif); cursor: pointer;
+}
+.lm-code-controls button:hover, .lm-image-widget button:hover { background: var(--vscode-button-secondaryHoverBackground, var(--lm-code-bg)); }
+.lm-code-controls button:focus-visible, .lm-image-widget button:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
 .lm-blockquote { border-left: 3px solid var(--lm-border); padding-left: 1em !important; color: var(--lm-muted); }
 .lm-task-widget { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 .25em 0 0; border-radius: 3px; }
 .lm-task-widget input:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
@@ -54,7 +67,8 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
 .lm-image-widget:focus-visible { outline: 2px solid var(--vscode-focusBorder, #1683d8); outline-offset: 2px; }
 .lm-image-widget img { display: block; max-width: min(100%, 48rem); max-height: 32rem; object-fit: contain; }
 .lm-image-widget span { color: var(--lm-muted); font-size: .9em; }
-.lm-status { position: fixed; right: .75rem; bottom: .75rem; z-index: 9; max-width: min(35rem, calc(100vw - 2rem)); border: 1px solid var(--lm-border); border-radius: 5px; padding: .55rem .8rem; color: var(--vscode-errorForeground, var(--lm-fg)); background: var(--vscode-editorWidget-background, var(--lm-bg)); box-shadow: 0 2px 12px #0002; }
+.lm-status { position: fixed; right: .75rem; bottom: .75rem; z-index: 9; max-width: min(35rem, calc(100vw - 2rem)); border: 1px solid var(--lm-border); border-radius: 5px; padding: .55rem .8rem; color: var(--lm-fg); background: var(--vscode-editorWidget-background, var(--lm-bg)); box-shadow: 0 2px 12px #0002; }
+.lm-status[data-severity="error"] { color: var(--vscode-errorForeground, var(--lm-fg)); }
 .lm-status[hidden] { display: none; }
 .lm-recovery { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: .75rem; padding: .7rem 1rem; border-bottom: 1px solid var(--lm-border); background: var(--vscode-editorWarning-background, var(--lm-bg)); font: 13px/1.4 var(--vscode-font-family, sans-serif); }
 .lm-recovery span { flex: 1; }
@@ -152,5 +166,6 @@ body.vscode-high-contrast-light .cm-editor ::selection { color: var(--vscode-edi
   .lm-table-widget th { background: Canvas; }
   .lm-recovery { color: CanvasText; background: Canvas; border-color: ButtonBorder; }
   .lm-recovery button { color: ButtonText; background: ButtonFace; border: 1px solid ButtonBorder; }
+  .lm-code-controls button, .lm-image-widget button { color: ButtonText; background: ButtonFace; border-color: ButtonBorder; }
   .lm-task-widget input { accent-color: Highlight; }
 }
