@@ -1,6 +1,7 @@
-import { EditorState, Text } from '@codemirror/state';
-import { ChangeSet } from '@codemirror/state';
-import { syntaxTree } from '@codemirror/language';
+import { ChangeSet, EditorState, Text } from '@codemirror/state';
+import { DocInput, syntaxTree } from '@codemirror/language';
+import { ChangedRange, Tree, TreeFragment } from '@lezer/common';
+import { GFM, parser } from '@lezer/markdown';
 
 export function normalizeReferenceLabel(value: string): string {
   return unescapeMarkdown(value).trim().replace(/\s+/g, ' ').toLowerCase();
@@ -17,12 +18,12 @@ export function unescapeMarkdown(value: string): string {
 }
 
 export function referenceTarget(state: EditorState, label: string): string | undefined {
-  const wanted = normalizeReferenceLabel(label);
-  for (let number = 1; number <= state.doc.lines; number++) {
-    const definition = parseReferenceDefinition(state.doc.line(number).text);
-    if (definition && definition.label === wanted) return definition.target;
-  }
-  return undefined;
+  return referenceDefinitions(state).get(normalizeReferenceLabel(label));
+}
+
+export function normalizeLinkDestination(value: string): string {
+  const target = value.startsWith('<') && value.endsWith('>') ? value.slice(1, -1) : value;
+  return unescapeMarkdown(target);
 }
 
 /** Resolve inline and reference links from a range that starts at the `[` boundary. */
@@ -32,13 +33,13 @@ export function linkTarget(state: EditorState, from: number, to: number): string
   while (node.name !== 'Link' && node.parent) node = node.parent;
   if (node.name === 'Link') {
     for (let child = node.firstChild; child; child = child.nextSibling) {
-      if (child.name === 'URL') return state.sliceDoc(child.from, child.to);
+      if (child.name === 'URL') return normalizeLinkDestination(state.sliceDoc(child.from, child.to));
     }
   }
 
   const reference = /^\[([\s\S]*?)\](?:\[([^\]]*)\])?$/.exec(source);
   if (!reference) return undefined;
-  const label = normalizeReferenceLabel(reference[2] || reference[1]);
+  const label = reference[2] || reference[1];
   return label ? referenceTarget(state, label) : undefined;
 }
 
@@ -58,39 +59,54 @@ export function linkTargetAt(state: EditorState, position: number): string | und
   let context = url.parent;
   while (context && !['Image', 'Link', 'Autolink'].includes(context.name) && context.parent) context = context.parent;
   if (context?.name === 'Image') return undefined;
+  if (context?.name === 'Link') return linkTarget(state, context.from, context.to);
   const target = state.sliceDoc(url.from, url.to);
   return /^https?:\/\//i.test(target) ? target : undefined;
 }
 
 export function referenceDefinitions(state: EditorState): Map<string, string> {
-  const definitions = new Map<string, string>();
-  for (let number = 1; number <= state.doc.lines; number++) {
-    const definition = parseReferenceDefinition(state.doc.line(number).text);
-    if (definition && !definitions.has(definition.label)) definitions.set(definition.label, definition.target);
-  }
-  return definitions;
+  return referenceIndex(state.doc).targets;
 }
 
-/** Reuse the index after edits that cannot affect a reference definition. */
-export function changesMayAffectReferenceDefinitions(before: Text, after: Text, changes: ChangeSet): boolean {
-  let affected = false;
-  const containsDefinition = (doc: Text, from: number, to: number): boolean => {
-    const first = Math.max(1, doc.lineAt(Math.max(0, from)).number - 1);
-    const last = Math.min(doc.lines, doc.lineAt(Math.min(doc.length, to)).number + 1);
-    for (let number = first; number <= last; number++) {
-      if (parseReferenceDefinition(doc.line(number).text)) return true;
+// Reference definitions depend on block structure. Avoid repeating inline
+// formatting work, especially when typing into a long unbroken paragraph.
+const referenceParser = parser.configure([GFM, {
+  remove: ['Escape', 'Entity', 'InlineCode', 'HTMLTag', 'Emphasis', 'HardBreak', 'Link', 'Image', 'LinkEnd', 'Strikethrough', 'Autolink'],
+}]);
+type ReferenceIndex = { tree: Tree; targets: Map<string, string> };
+const referenceIndexes = new WeakMap<Text, ReferenceIndex>();
+
+/** Parse the entire document so offscreen definitions have their block context. */
+function referenceIndex(doc: Text, fragments: readonly TreeFragment[] = []): ReferenceIndex {
+  const cached = referenceIndexes.get(doc);
+  if (cached) return cached;
+  const tree = referenceParser.parse(new DocInput(doc), fragments);
+  const targets = new Map<string, string>();
+  tree.iterate({ enter: node => {
+    if (node.name === 'LinkReference') {
+      const label = node.node.getChild('LinkLabel');
+      const url = node.node.getChild('URL');
+      if (label && url) {
+        const key = normalizeReferenceLabel(doc.sliceString(label.from + 1, label.to - 1));
+        if (!targets.has(key)) targets.set(key, normalizeLinkDestination(doc.sliceString(url.from, url.to)));
+      }
     }
-    return false;
-  };
-  changes.iterChangedRanges((from, to, newFrom, newTo) => {
-    if (!affected && (containsDefinition(before, from, to) || containsDefinition(after, newFrom, newTo))) affected = true;
-  });
-  return affected;
+    // Definitions can nest in lists and quotes, but never in code, HTML, or
+    // inline content. Skip those subtrees when collecting the index.
+    return /^(Document|Blockquote|BulletList|OrderedList|ListItem)$/.test(node.name) ? undefined : false;
+  }});
+  const index = { tree, targets };
+  referenceIndexes.set(doc, index);
+  return index;
 }
 
-function parseReferenceDefinition(line: string): { label: string; target: string } | undefined {
-  const match = /^\s{0,3}(?:>\s*)*(?:(?:[-+*]|\d+[.)])\s+)?\[((?:\\.|[^\]])+)\]:[ \t]*(?:<([^>]+)>|(\S+))/.exec(line);
-  const target = match?.[2] ?? match?.[3];
-  if (!match || !target) return undefined;
-  return { label: normalizeReferenceLabel(match[1]), target: unescapeMarkdown(target) };
+/** Incrementally parse edits, including changes to distant fences and HTML blocks. */
+export function changesMayAffectReferenceDefinitions(before: Text, after: Text, changes: ChangeSet): boolean {
+  const previous = referenceIndex(before);
+  const ranges: ChangedRange[] = [];
+  changes.iterChangedRanges((fromA, toA, fromB, toB) => ranges.push({ fromA, toA, fromB, toB }));
+  const fragments = TreeFragment.applyChanges(TreeFragment.addTree(previous.tree), ranges);
+  const next = referenceIndex(after, fragments);
+  return previous.targets.size !== next.targets.size
+    || [...previous.targets].some(([label, target]) => next.targets.get(label) !== target);
 }

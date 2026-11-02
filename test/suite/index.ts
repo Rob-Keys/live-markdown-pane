@@ -34,6 +34,15 @@ async function waitFor(predicate: () => boolean | Promise<boolean>, timeoutMs = 
   }
 }
 
+function memoryState(): vscode.Memento {
+  const values = new Map<string, unknown>();
+  return {
+    get<T>(key: string, defaultValue?: T): T | undefined { return values.has(key) ? values.get(key) as T : defaultValue; },
+    async update(key: string, value: unknown): Promise<void> { if (value === undefined) values.delete(key); else values.set(key, value); },
+    keys(): readonly string[] { return [...values.keys()]; },
+  };
+}
+
 export async function run(): Promise<void> {
   const testFilter = process.env.LIVE_MARKDOWN_TEST_FILTER;
   async function runCase(name: string, body: (dir: string) => Promise<void>): Promise<void> {
@@ -282,7 +291,7 @@ export async function run(): Promise<void> {
   });
 
   await runCase('reference definitions resolve across the document and invalidate selectively', async () => {
-      const source = `[image][late]\n${'body text\n'.repeat(80)}[late]: <assets/image%20one.png> "title"\n`;
+      const source = `[image][late]\n${'body text\n'.repeat(80)}\n[late]: <assets/image%20one.png> "title"\n`;
       const state = EditorState.create({ doc: source });
       assert.equal(referenceDefinitions(state).get('late'), 'assets/image%20one.png');
 
@@ -310,6 +319,32 @@ export async function run(): Promise<void> {
         linkTargetAt(state, source.indexOf('heading') + 1),
         linkTargetAt(state, source.indexOf('Guide') + 1),
       ], ['https://example.com', '../manual.md', 'https://example.net', '../manual.md']);
+  });
+
+  await runCase('reference definitions exclude fenced examples and follow block-context edits', async () => {
+      const source = '```md\n[docs]: wrong.md\n```\n\n~~~\n[image]: wrong.png\n~~~\n\n'
+        + '[docs]: correct.md\n[image]: correct.png\n\n[link][docs] and ![picture][image]\n';
+      const state = EditorState.create({ doc: source, extensions: [markdown({ extensions: GFM })] });
+      assert.equal(referenceDefinitions(state).get('docs'), 'correct.md');
+      assert.equal(referenceDefinitions(state).get('image'), 'correct.png');
+      assert.equal(linkTargetAt(state, source.indexOf('[link]') + 2), 'correct.md');
+
+      // Removing a fence changes a definition's meaning far from the edit.
+      const contextSource = `~~~\n${'example text\n'.repeat(20)}\n[docs]: hidden.md\n~~~\n\n[docs]: visible.md\n`;
+      const before = EditorState.create({ doc: contextSource });
+      assert.equal(referenceDefinitions(before).get('docs'), 'visible.md');
+      const changes = ChangeSet.of([{ from: 0, to: 3, insert: '' }], before.doc.length);
+      const after = before.update({ changes }).state;
+      assert.equal(changesMayAffectReferenceDefinitions(before.doc, after.doc, changes), true);
+      assert.equal(referenceDefinitions(after).get('docs'), 'hidden.md');
+
+      const unrelated = ChangeSet.of([{ from: 8, to: 8, insert: 'ordinary ' }], state.doc.length);
+      const unrelatedState = state.update({ changes: unrelated }).state;
+      assert.equal(changesMayAffectReferenceDefinitions(state.doc, unrelatedState.doc, unrelated), false);
+      assert.equal(referenceDefinitions(unrelatedState).get('docs'), 'correct.md');
+
+      const distant = EditorState.create({ doc: `${'body text\n\n'.repeat(5000)}[docs]: distant.md\n` });
+      assert.equal(referenceDefinitions(distant).get('docs'), 'distant.md', 'definitions beyond the editor parse viewport must resolve');
   });
 
   await runCase('rendered link labels have visible styling and destination hover text', async () => {
@@ -992,6 +1027,92 @@ export async function run(): Promise<void> {
       assert.equal(second.recoveryId, 'a'.repeat(32), 'reopen should claim the prior inactive webview journal');
       assert.equal(await secondBridge.recoveredDraft(second), `Draft: ${original}`);
       secondBridge.dispose();
+  });
+
+  await runCase('draft recovery after a committed edit is discoverable by a new view', async tempDir => {
+      const uri = vscode.Uri.file(path.join(tempDir, 'later-recovery.md'));
+      await fs.writeFile(uri.fsPath, 'base');
+      const document = await vscode.workspace.openTextDocument(uri);
+      const state = memoryState();
+      const panel = { webview: { postMessage: async () => true } } as unknown as vscode.WebviewPanel;
+      const first = { panel, sessionId: 'first-recovery-session', ready: false, recoveryId: undefined as string | undefined };
+      const bridge = new DocumentBridge(document, state);
+      bridge.add(first);
+      await bridge.prepareRecoveryClient(first, 'a'.repeat(32));
+      await bridge.receive(first, { type: 'ready', sessionId: first.sessionId, recoveryId: first.recoveryId });
+      const changes = [{ from: 4, to: 4, insert: '1' }];
+      await bridge.receive(first, { type: 'draft', sessionId: first.sessionId, sequence: 1, changes });
+      await bridge.receive(first, { type: 'edit', sessionId: first.sessionId, operationId: 'committed', baseVersion: document.version, draftSequence: 1, changes });
+      await bridge.receive(first, { type: 'clearDraft', sessionId: first.sessionId });
+      assert.equal(document.getText(), 'base1');
+
+      await bridge.receive(first, { type: 'draft', sessionId: first.sessionId, sequence: 1, changes: [{ from: 5, to: 5, insert: ' uncommitted' }] });
+      bridge.remove(first);
+      await waitFor(() => state.keys().some(key => key.endsWith('.snapshot')));
+      bridge.dispose();
+
+      const reopened = { panel, sessionId: 'new-recovery-session', ready: false, recoveryId: undefined as string | undefined };
+      const nextBridge = new DocumentBridge(document, state);
+      try {
+        nextBridge.add(reopened);
+        await nextBridge.prepareRecoveryClient(reopened, 'b'.repeat(32));
+        assert.equal(reopened.recoveryId, first.recoveryId, 'a new view must claim the later interrupted draft');
+        assert.equal(await nextBridge.recoveredDraft(reopened), 'base1 uncommitted');
+        assert.equal(document.getText(), 'base1', 'recovering a draft must not commit it');
+      } finally { nextBridge.dispose(); await document.save(); }
+  });
+
+  await runCase('document changes during the readonly check reject stale edit offsets', async () => {
+      let contents: Uint8Array<ArrayBufferLike> = new TextEncoder().encode('abcd');
+      const events = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+      let statGate: Promise<void> | undefined;
+      let statStarted = false;
+      let releaseStat = () => {};
+      const uri = vscode.Uri.parse('liveMarkdown-stale-check:/document.md');
+      const provider: vscode.FileSystemProvider = {
+        onDidChangeFile: events.event,
+        watch: () => new vscode.Disposable(() => {}),
+        stat: async () => {
+          if (statGate) { statStarted = true; await statGate; }
+          return { type: vscode.FileType.File, ctime: 0, mtime: 0, size: contents.byteLength };
+        },
+        readFile: () => contents,
+        writeFile: (_uri, data) => { contents = data; },
+        readDirectory: () => [], createDirectory: () => {}, delete: () => {}, rename: () => {},
+      };
+      const registration = vscode.workspace.registerFileSystemProvider(uri.scheme, provider, { isCaseSensitive: true });
+      let bridge: DocumentBridge | undefined;
+      try {
+        const document = await vscode.workspace.openTextDocument(uri);
+        const outgoing: Array<{ type: string; operationId?: string }> = [];
+        const panel = { webview: { postMessage: async (message: { type: string; operationId?: string }) => { outgoing.push(message); return true; } } } as unknown as vscode.WebviewPanel;
+        const client = { panel, sessionId: 'readonly-race-session', ready: false, recoveryId: undefined as string | undefined };
+        bridge = new DocumentBridge(document, memoryState());
+        bridge.add(client);
+        await bridge.prepareRecoveryClient(client, 'c'.repeat(32));
+        await bridge.receive(client, { type: 'ready', sessionId: client.sessionId, recoveryId: client.recoveryId });
+        const changes = [{ from: 1, to: 2, insert: 'B' }];
+        await bridge.receive(client, { type: 'draft', sessionId: client.sessionId, sequence: 1, changes });
+        statGate = new Promise(resolve => { releaseStat = resolve; });
+        const pending = bridge.receive(client, { type: 'edit', sessionId: client.sessionId, operationId: 'stale-race', baseVersion: document.version, draftSequence: 1, changes });
+        await waitFor(() => statStarted);
+        const external = new vscode.WorkspaceEdit();
+        external.insert(uri, new vscode.Position(0, 0), 'X');
+        assert.equal(await vscode.workspace.applyEdit(external), true);
+        statGate = undefined;
+        releaseStat();
+        await pending;
+        assert.equal(document.getText(), 'Xabcd', 'stale ranges must not overwrite the external edit');
+        assert.ok(outgoing.some(message => message.type === 'failure' && message.operationId === 'stale-race'));
+        assert.ok(!outgoing.some(message => message.type === 'ack' && message.operationId === 'stale-race'));
+        assert.equal(await bridge.recoveredDraft(client), 'aBcd', 'the rejected local edit must remain recoverable');
+        await document.save();
+      } finally {
+        releaseStat();
+        bridge?.dispose();
+        registration.dispose();
+        events.dispose();
+      }
   });
 
   await runCase('host offset mapping preserves CRLF and Unicode surrogate positions', async tempDir => {

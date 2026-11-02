@@ -292,12 +292,15 @@ export class DocumentBridge implements vscode.Disposable {
       await fail('The recovery journal could not be saved. Your local draft is preserved.');
       return;
     }
-    if (message.baseVersion !== this.document.version) {
-      await fail('The document changed elsewhere. Your local draft is preserved; reload or recover it before continuing.');
-      return;
-    }
     if (await isDocumentReadonly(this.document.uri)) {
       await fail('This document is read-only. Your draft is preserved.');
+      return;
+    }
+    // Filesystem checks yield to external document changes. Validate the source
+    // version after the last await before interpreting this edit's offsets.
+    if (this.document.isClosed) return;
+    if (message.baseVersion !== this.document.version) {
+      await fail('The document changed elsewhere. Your local draft is preserved; reload or recover it before continuing.');
       return;
     }
     const processingStarted = performance.now();
@@ -422,6 +425,9 @@ export class DocumentBridge implements vscode.Disposable {
     if (sequence !== recovery.sequence + 1) throw new Error('Recovery sequence gap');
     let base = this.state.get<RecoveryBase>(`${recovery.key}.base`);
     if (!base) {
+      // Committing a previous batch removes its recovery index entry. Register
+      // each new journal so a fresh webview can find it after an interruption.
+      await this.registerRecovery(recovery.id);
       base = {
         baseVersion: this.document.version,
         baseText: this.document.getText().replace(/\r\n/g, '\n'),
@@ -498,6 +504,17 @@ export class DocumentBridge implements vscode.Disposable {
     recovery.text = '';
     recovery.baseText = undefined;
     recovery.journal = undefined;
+  }
+
+  private async registerRecovery(id: string): Promise<void> {
+    const task = this.recoveryIndexTail.then(async () => {
+      const documentKey = createHash('sha256').update(this.document.uri.toString()).digest('hex');
+      const indexKey = `liveMarkdown.recovery-index.${documentKey}`;
+      const ids = this.state.get<string[]>(indexKey) ?? [];
+      if (!ids.includes(id)) await this.state.update(indexKey, [...ids, id].slice(-64));
+    });
+    this.recoveryIndexTail = task.catch(() => undefined);
+    await task;
   }
 
   private async unregisterRecovery(id: string): Promise<void> {

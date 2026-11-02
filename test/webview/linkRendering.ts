@@ -5,6 +5,7 @@ import { ensureSyntaxTree } from '@codemirror/language';
 import { GFM } from '@lezer/markdown';
 import { EditorSettings } from '../../src/protocol';
 import { liveRendering } from '../../src/webview/liveRendering';
+import { linkTargetAt } from '../../src/webview/references';
 
 declare function acquireVsCodeApi(): { postMessage(message: { error?: string }): void };
 const vscode = acquireVsCodeApi();
@@ -16,7 +17,9 @@ function check(condition: unknown, message: string): asserts condition {
 async function run(): Promise<void> {
   const source = 'Plain text\n\n[inline](https://example.com) and [reference][docs] and [collapsed][] and [shortcut]\n\n'
     + '<https://example.net> and https://example.org\n\n## [heading](guide.md)\n\n'
-    + '`[code](https://code.example)`\n\n[docs]: ../manual.md\n[collapsed]: collapsed.md\n[shortcut]: shortcut.md\n';
+    + '[angled](<https://angle.example/path>) and [entity](https://query.example/?a=1&amp;b=2) and [escaped](guide\\(draft\\).md)\n\n'
+    + '`[code](https://code.example)`\n\n```md\n[docs]: wrong.md\n```\n\n'
+    + '[docs]: ../manual.md\n[collapsed]: collapsed.md\n[shortcut]: shortcut.md\n';
   const settings: EditorSettings = {
     syntaxVisibility: 'activeLine', readingPreset: 'default', fontFamily: 'inherit',
     fontSize: null, lineHeight: null, contentWidth: null, showLineNumbers: false,
@@ -41,6 +44,8 @@ async function run(): Promise<void> {
       ['collapsed', 'collapsed.md'], ['shortcut', 'shortcut.md'],
       ['https://example.net', 'https://example.net'], ['https://example.org', 'https://example.org'],
       ['heading', 'guide.md'],
+      ['angled', 'https://angle.example/path'], ['entity', 'https://query.example/?a=1&b=2'],
+      ['escaped', 'guide(draft).md'],
     ];
     const verify = () => {
       check(failures.length === 0, `Rendering failed: ${failures}`);
@@ -52,9 +57,19 @@ async function run(): Promise<void> {
         const style = getComputedStyle(link);
         check(style.textDecorationLine.includes('underline'), `Missing underline for ${label}`);
         check(style.color !== getComputedStyle(view.contentDOM).color, `Missing link color for ${label}`);
+        const position = view.state.doc.toString().indexOf(label) + 1;
+        check(linkTargetAt(view.state, position) === target, `Incorrect follow destination for ${label}: ${linkTargetAt(view.state, position)}`);
       }
       check(!Array.from(view.dom.querySelectorAll('.lm-link')).some(link => link.textContent?.includes('code.example')), 'Code must remain literal');
     };
+    for (const [sourceTarget, target] of [
+      ['<https://angle.example/path>', 'https://angle.example/path'],
+      ['https://query.example/?a=1&amp;b=2', 'https://query.example/?a=1&b=2'],
+      ['guide\\(draft\\).md', 'guide(draft).md'],
+    ]) {
+      const position = source.indexOf(sourceTarget) + 2;
+      check(linkTargetAt(view.state, position) === target, `Source destination clicks must resolve ${sourceTarget}`);
+    }
     verify();
     view.dispatch({ selection: { anchor: source.indexOf('inline') + 2 } });
     verify();

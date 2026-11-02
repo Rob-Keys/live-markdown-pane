@@ -4,7 +4,7 @@ import { EditorState, Range, StateEffect, StateField, Transaction } from '@codem
 import { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
 import { EditorSettings, isPermittedImageSource } from '../protocol';
 import { ImageWidget, ListMarker, TableAlignment, TableTextRun, TableWidget, TaskCheckbox, TextWidget } from './widgets';
-import { changesMayAffectReferenceDefinitions, normalizeReferenceLabel, referenceDefinitions, unescapeMarkdown } from './references';
+import { changesMayAffectReferenceDefinitions, normalizeLinkDestination, normalizeReferenceLabel, referenceDefinitions, unescapeMarkdown } from './references';
 import { shouldReduceRendering } from './documentMetrics';
 import { effectiveSyntaxVisibility, shouldRenderTableWidget } from './renderingVisibility';
 
@@ -495,9 +495,7 @@ function collectTableRuns(state: EditorState, parent: SyntaxNode, from: number, 
 function tableLinkTarget(state: EditorState, link: SyntaxNode, referenceTargets: Map<string, string>): string | undefined {
   for (let child = link.firstChild; child; child = child.nextSibling) {
     if (child.name !== 'URL') continue;
-    let target = state.sliceDoc(child.from, child.to);
-    if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1);
-    return unescapeMarkdown(target);
+    return normalizeLinkDestination(state.sliceDoc(child.from, child.to));
   }
   const reference = /^\[([\s\S]*?)\](?:\[([^\]]*)\])?$/.exec(state.sliceDoc(link.from, link.to));
   if (!reference) return undefined;
@@ -516,9 +514,7 @@ export function readImage(state: EditorState, image: SyntaxNode): { alt: string;
   if (closingLabel === undefined) return undefined;
   const rawAlt = state.sliceDoc(image.from + 2, closingLabel);
   const alt = unescapeMarkdown(rawAlt);
-  let source = url;
-  if (source?.startsWith('<') && source.endsWith('>')) source = source.slice(1, -1);
-  if (source) source = unescapeMarkdown(source);
+  const source = url ? normalizeLinkDestination(url) : undefined;
   return { alt, source: source || undefined, reference };
 }
 
